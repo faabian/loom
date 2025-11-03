@@ -26,6 +26,7 @@ initialize
 
 structure VelvetObligation where
   binderIdents : TSyntaxArray `Lean.Parser.Term.bracketedBinder
+  modIds : Array Ident
   ids : Array Ident
   retId : Ident
   ret : Term
@@ -48,8 +49,9 @@ initialize velvetObligations :
 
 /-- Storing slightly more information than `VelvetObligation`.  -/
 structure VelvetTestingCtx extends VelvetObligation where
-  newIds : Array Ident
+  /-- The _original_ (i.e., without `Old` suffix) binders of mutable arguments. -/
   modBinders : Array (TSyntax `Lean.Parser.Term.bracketedBinder)
+  retType : Term
 deriving Inhabited
 
 abbrev VelvetTestingContextMap := Std.HashMap Name VelvetTestingCtx

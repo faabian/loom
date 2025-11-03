@@ -158,12 +158,12 @@ The implementation of a method goes inside a `do` block.
         i := i + 1
     ```
 
-*   **Non-determenistic operations**: syntax `let <name> :| <cond>` is used to assign a value using non-determenism.
+*   **Non-deterministic operations**: syntax `let <name> :| <cond>` is used to assign a value using non-determinism.
     **Example:**
     ```lean
     let ans :| ans > inp + 200
     ```
-    You can choose the type of non-determenism by switching between `AngelicChoice` and `DemonicChoice`.
+    You can choose the type of non-determinism by switching between `AngelicChoice` and `DemonicChoice`.
 *   **Array Operations**: For `Array <Type>`:
     *   **Creation**: `Array.replicate <size> <default_value>`
     *   **Size**: `<array>.size`
@@ -510,9 +510,9 @@ method qsortPartition (mut arr: Array Int) (low: Nat) (high: Nat)
   return (pivotIndex: Nat)
 ```
 
-The modified array is automatically available as `arrNew` in postconditions:
+The old array value is automatically available as `arrOld` in postconditions:
 ```lean
-ensures arrNew[pivotIndex]! = arr[high]!
+ensures arr[pivotIndex]! = arrOld[high]!
 ```
 
 #### Compound Loop Conditions

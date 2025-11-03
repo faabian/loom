@@ -23,8 +23,8 @@ def deriveDecidableNatUpperBound (tms : List <| TSyntax `term)
       constructor
       next => (intro $h:ident ; intros ; apply $h:ident <;> (try split_ands) <;> (solve
           | omega
-          | aesop))
-      next => aesop)
+          | grind))
+      next => grind)
 
 macro "decidable_by_nat_upperbound" "[" tms:term,* "]" : term => do
   let res ← deriveDecidableNatUpperBound tms.getElems.toList

@@ -13,52 +13,46 @@ import CaseStudies.Velvet.Std
 
 open Lean.Elab.Term.DoNames
 
-set_option auto.smt.trust true
-set_option auto.smt true
-set_option auto.smt.timeout 4
-set_option auto.smt.solver.name "cvc5"
+attribute [grind] Array.multiset_swap
 
-
-attribute [solverHint] TArray.get_set TArray.size_set
-
-variable {arrInt} [arr_inst_int: TArray Int arrInt]
-variable {arrNat} [arr_inst: TArray Nat arrNat]
-
--- set_option trace.profiler true
-attribute [local solverHint] TArray.multiSet_swap
+macro_rules
+  | `(tactic|loom_solver) =>
+    `(tactic|try grind (splits := 40))
 
 --we prove invariants in partial correctness
 open PartialCorrectness DemonicChoice in
 method insertionSort_part
-  (mut arr: arrInt) return (u: Unit)
-  ensures forall i j, 0 ≤ i ∧ i ≤ j ∧ j < size arr → arrNew[i] ≤ arrNew[j]
-  ensures toMultiset arr = toMultiset arrNew
+  (mut arr: Array Int) return (u: Unit)
+  ensures forall i j, 0 ≤ i ∧ i ≤ j ∧ j < arr.size → arr[i]! ≤ arr[j]!
+  ensures arr.toMultiset = arrOld.toMultiset
   do
     let arr₀ := arr
-    let arr_size := size arr
+    let arr_size := arr.size
     if arr_size ≤ 1
     then
       return
     else
       let mut n := 1
-      while n ≠ size arr
-      invariant size arr = arr_size
-      invariant n ≤ size arr
-      invariant forall i j, 0 ≤ i ∧ i < j ∧ j <= n - 1 → arr[i] ≤ arr[j]
-      invariant toMultiset arr = toMultiset arr₀
+      while n ≠ arr.size
+      invariant arr.size = arr_size
+      invariant n ≤ arr.size
+      invariant forall i j, 0 ≤ i ∧ i < j ∧ j <= n - 1 → arr[i]! ≤ arr[j]!
+      invariant arr.toMultiset = arr₀.toMultiset
       do
         let mut mind := n
         while mind ≠ 0
-        invariant size arr = arr_size
+        invariant arr.size = arr_size
         invariant mind ≤ n
-        invariant forall i j, 0 ≤ i ∧ i < j ∧ j ≤ n ∧ j ≠ mind → arr[i] ≤ arr[j]
-        invariant toMultiset arr = toMultiset arr₀
+        invariant forall i j, 0 ≤ i ∧ i < j ∧ j ≤ n ∧ j ≠ mind → arr[i]! ≤ arr[j]!
+        invariant arr.toMultiset = arr₀.toMultiset
         do
-          if arr[mind] < arr[mind - 1] then
-            swap arr[mind] arr[mind - 1]
+          if arr[mind]! < arr[mind - 1]! then
+            swap! arr[mind]! arr[mind - 1]!
           mind := mind - 1
         n := n + 1
       return
+
+set_option maxHeartbeats 1000000 in
 open PartialCorrectness DemonicChoice in
 prove_correct insertionSort_part by
   loom_solve!
@@ -66,28 +60,28 @@ prove_correct insertionSort_part by
 --we prove termination in total correctness
 open TotalCorrectness DemonicChoice in
 method insertionSort_termination
-  (mut arr: arrInt) return (u: Unit)
+  (mut arr: Array Int) return (u: Unit)
   ensures True
   do
     let arr₀ := arr
-    let arr_size := size arr
+    let arr_size := arr.size
     if arr_size ≤ 1
     then
       return
     else
       let mut n := 1
-      while n ≠ size arr
-      invariant size arr = arr_size
-      invariant n ≤ size arr
-      decreasing size arr - n
+      while n ≠ arr.size
+      invariant arr.size = arr_size
+      invariant n ≤ arr.size
+      decreasing arr.size - n
       do
         let mut mind := n
         while mind ≠ 0
-        invariant size arr = arr_size
+        invariant arr.size = arr_size
         decreasing mind
         do
-          if arr[mind] < arr[mind - 1] then
-            swap arr[mind] arr[mind - 1]
+          if arr[mind]! < arr[mind - 1]! then
+            swap! arr[mind]! arr[mind - 1]!
           mind := mind - 1
         n := n + 1
       return
@@ -98,36 +92,36 @@ prove_correct insertionSort_termination by
 --we prove the postcondition just by combination of the two triples above
 open TotalCorrectness DemonicChoice in
 method insertionSort_result
-  (mut arr: arrInt) return (u: Unit)
-  ensures forall i j, 0 ≤ i ∧ i ≤ j ∧ j < size arr → arrNew[i] ≤ arrNew[j]
-  ensures toMultiset arr = toMultiset arrNew
+  (mut arr: Array Int) return (u: Unit)
+  ensures forall i j, 0 ≤ i ∧ i ≤ j ∧ j < arr.size → arr[i]! ≤ arr[j]!
+  ensures arr.toMultiset = arrOld.toMultiset
   do
     let arr₀ := arr
-    let arr_size := size arr
+    let arr_size := arr.size
     if arr_size ≤ 1
     then
       return
     else
       let mut n := 1
-      while n ≠ size arr
+      while n ≠ arr.size
       invariant True
       do
         let mut mind := n
         while mind ≠ 0
         invariant True
         do
-          if arr[mind] < arr[mind - 1] then
-            swap arr[mind] arr[mind - 1]
+          if arr[mind]! < arr[mind - 1]! then
+            swap! arr[mind]! arr[mind - 1]!
           mind := mind - 1
         n := n + 1
       return
 open TotalCorrectness DemonicChoice in
 prove_correct insertionSort_result by
-  have triple_termination := insertionSort_termination_correct arr
-  have triple_res := insertionSort_part_correct arr
+  have triple_termination := insertionSort_termination_correct arrOld
+  have triple_res := insertionSort_part_correct arrOld
   -- applying lemma about separation of termination proof and correctness proof
   exact VelvetM.total_decompose_triple
-    (insertionSort_termination arr) (insertionSort_part arr) (insertionSort_result arr)
+    (insertionSort_termination arrOld) (insertionSort_part arrOld) (insertionSort_result arrOld)
     (eqx := by rfl) (eqy := by rfl)
     triple_termination
     triple_res

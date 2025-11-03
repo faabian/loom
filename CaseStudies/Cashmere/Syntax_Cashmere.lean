@@ -297,6 +297,7 @@ elab_rules : command
       ret := ret
       pre := pre
       post := post
+      modIds := #[]
     }
     return (defCmd, obligation)
   elabCommand defCmd

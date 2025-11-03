@@ -80,10 +80,6 @@ macro_rules
   | `(doElem|$id:ident[$idx:term] += $val:term) =>
     `(doElem| $id:term := ($id:term).modify $idx (· + $val))
 
-macro_rules
-  | `(tactic|loom_solver) =>
-    `(tactic|loom_auto)
-
 private def toBracketedBinderArrayLeafny (stx : Array (TSyntax `leafny_binder)) : MetaM (TSyntaxArray `Lean.Parser.Term.bracketedBinder) := do
   let mut binders := #[]
   for b in stx do
@@ -92,7 +88,8 @@ private def toBracketedBinderArrayLeafny (stx : Array (TSyntax `leafny_binder)) 
       let fb ← `(bracketedBinder| ($id : $tp:term))
       binders := binders.push fb
     | `(leafny_binder| (mut $id:ident : $tp:term)) => do
-      let fb ← `(bracketedBinder| ($id : $tp:term))
+      let idOld := mkIdent <| id.getId.appendAfter "Old"
+      let fb ← `(bracketedBinder| ($idOld : $tp:term))
       binders := binders.push fb
     | _ => throwError "unexpected syntax in leafny binder: {b}"
   return binders
@@ -122,7 +119,8 @@ def getIds (stx : Array (TSyntax `leafny_binder)) : MetaM (Array Ident) := do
   for b in stx do
     match b with
     | `(leafny_binder| (mut $id:ident : $_:term)) => do
-      ids := ids.push id
+      let idOld := mkIdent <| id.getId.appendAfter "Old"
+      ids := ids.push idOld
     | `(leafny_binder| ($id:ident : $_:term)) => do
       ids := ids.push id
     | _ => throwError "unexpected syntax in leafny binder: {b}"
@@ -143,15 +141,19 @@ partial def expandLeafnyDoSeqItem (modIds : Array Ident) (stx : doSeqItem) : Ter
   | `(Term.doSeqItem| $stx ;) => expandLeafnyDoSeqItem modIds $ <- `(Term.doSeqItem| $stx:doElem)
   | `(Term.doSeqItem| return) => expandLeafnyDoSeqItem modIds $ <- `(Term.doSeqItem| return ())
   | `(Term.doSeqItem| return $t) =>
-    let mut ret <- `(term| ())
-    for modId in modIds do
-      ret <- `(term| ⟨$modId, $ret⟩)
-    return #[<-`(Term.doSeqItem| return ⟨$t, $ret⟩)]
+    let ret <-
+      if modIds.size = 0 then
+      `(term| $t)
+     else
+       `(term| ($t, $[$modIds:term],*))
+    return #[<-`(Term.doSeqItem| return $ret)]
   | `(Term.doSeqItem| pure $t) =>
-    let mut ret <- `(term| ())
-    for modId in modIds do
-      ret <- `(term| ⟨$modId, $ret⟩)
-    return #[<-`(Term.doSeqItem| pure ⟨$t, $ret⟩)]
+    let ret <-
+      if modIds.size = 0 then
+      `(term| $t)
+     else
+       `(term| ($t, $[$modIds:term],*))
+    return #[<-`(Term.doSeqItem| pure $ret)]
   | `(Term.doSeqItem| if $h:ident : $t:term then $thn:doSeq else $els:doSeq) =>
     let thn <- expandLeafnyDoSeq modIds thn
     let els <- expandLeafnyDoSeq modIds els
@@ -231,6 +233,13 @@ private def Array.andList (ts : Array (TSyntax `term)) : TermElabM (TSyntax `ter
       t <- `(term| $t' ∧ $t)
     return t
 
+private def addPreludeToPreCond (pre : Term) (modIds : Array Ident) : CoreM (TSyntax `term) := do
+  let mut pre := pre
+  for modId in modIds do
+    let modIdOld := mkIdent <| modId.getId.appendAfter "Old"
+    pre ← `(term| let $modId:ident := $modIdOld:ident; $pre)
+  pure pre
+
 elab_rules : command
   | `(command|
   method $name:ident $binders:leafny_binder* return ( $retId:ident : $type:term )
@@ -248,17 +257,22 @@ elab_rules : command
 
     let mut mods := #[]
     for modId in modIds do
-      -- let modIdOld := mkIdent <| modId.getId.appendAfter "Old"
+      let modIdOld := mkIdent <| modId.getId.appendAfter "Old"
       -- let modOld <- `(Term.doSeqItem| let $modIdOld:ident := $modId:ident)
-      let mod <- `(Term.doSeqItem| let mut $modId:ident := $modId:ident)
+      let mod <- `(Term.doSeqItem| let mut $modId:ident := $modIdOld:ident)
       mods := mods.push mod
     let mutTypes ← getMutTypes binders
-    let mut retType <- `(Unit)
-    for mutType in mutTypes, modId in modIds do
-      retType <- `(($modId:ident : $mutType) × $retType)
+    let mut retType : Term <- `($type)
+    if mutTypes.size != 0 then
+      let lastMutType := mutTypes[mutTypes.size - 1]!
+      let mutTypes := mutTypes.pop.reverse
+      let mut mutTypeProd := lastMutType
+      for mutType in mutTypes do
+        mutTypeProd <- `($mutType × $mutTypeProd)
+      retType <- `($retType × $mutTypeProd)
     let defCmd <- `(command|
       set_option linter.unusedVariables false in
-      def $name $bindersIdents* : VelvetM (($retId:ident : $type) × $retType) := do $mods* $doSeq*
+      def $name $bindersIdents* : VelvetM $retType:term := do $mods* $doSeq*
       $suf:suffix)
     -- let lemmaName := mkIdent <| name.getId.appendAfter "_correct"
 
@@ -268,12 +282,13 @@ elab_rules : command
     let post <- ens.andListWithName ensName
 
     let namelessPre <- req.andList
+    let namelessPre <- addPreludeToPreCond namelessPre modIds
     let namelessPost <- ens.andList
 
-    let mut ret <- `(term| ())
-    for modId in modIds do
-      let modId := mkIdent <| modId.getId.appendAfter "New"
-      ret <- `(term| ⟨$modId, $ret⟩)
+    let ret <- if modIds.size = 0 then
+      `(term| $retId)
+    else
+      `(term| ($retId, $[$modIds:term],*))
 
     let ids ← getIds binders
     let obligation : VelvetObligation := {
@@ -283,17 +298,16 @@ elab_rules : command
       ret := ret
       pre := pre
       post := post
+      modIds := modIds
     }
-    let newIds := modIds.map (fun x => Lean.mkIdent <| x.getId.appendAfter "New")
-    let modBinders ← newIds.zip mutTypes |>.mapM fun (newId, mutType) =>
-      `(bracketedBinder| ($newId : $mutType))
-    return (defCmd, obligation, { obligation with pre := namelessPre , post := namelessPost , modBinders , newIds })
+    let modBinders ← modIds.zip mutTypes |>.mapM fun (mId, mutType) =>
+      `(bracketedBinder| ($mId : $mutType))
+    return (defCmd, obligation, { obligation with pre := namelessPre , post := namelessPost , modBinders , retType := type })
   elabCommand defCmd
   velvetObligations.modify (·.insert name.getId obligation)
   velvetTestingContextMap.modify (·.insert name.getId testingCtx)
 
 notation "{" P "}" c "{" v "," Q "}" => triple P c (fun v => Q)
-
 /-
 example:
 open TotalCorrectness DemonicChoice
@@ -309,22 +323,24 @@ elab_rules : command
     let .some obligation := ctx[name.getId]? | throwError "no obligation found"
     let bindersIdents := obligation.binderIdents
     let ids := obligation.ids
-    let retId := obligation.retId
+    -- let retId := obligation.retId
     let ret := obligation.ret
-    let pre := obligation.pre
+    let pre ← liftCoreM <| addPreludeToPreCond obligation.pre obligation.modIds
     let post := obligation.post
     let lemmaName := mkIdent <| name.getId.appendAfter "_correct"
     -- let proof <- withRef tkp ``()
     let proofSeq ← withRef tkp `(tacticSeq|
       unfold $name
       ($proof))
+
     let thmCmd <- withRef tkp `(command|
       @[loomSpec]
       lemma $lemmaName $bindersIdents* :
       triple
         $pre
         ($name $ids*)
-        (fun ⟨$retId, $ret⟩ => $post) := by $proofSeq $suf:suffix)
+        (fun $ret => $post) := by $proofSeq $suf:suffix)
+    trace[Loom] "{thmCmd}"
     Command.elabCommand thmCmd
     velvetObligations.modify (·.erase name.getId)
 
@@ -352,7 +368,7 @@ elab_rules : command
   let execName := name.appendAfter "Exec"
   let execDefCmd ← `(command|
     def $(mkIdent execName) $bindersIdents* :=
-      $(mkIdent ``NonDetT.extractWeak) ($nameRaw $ids*) (by extract_tactic))
+      $(mkIdent ``NonDetT.run) ($nameRaw $ids*))
   elabCommand execDefCmd
 
 def elabDefiningDecidableInstancesForVelvetSpec (nameRaw : Ident)
@@ -362,7 +378,7 @@ def elabDefiningDecidableInstancesForVelvetSpec (nameRaw : Ident)
   let (target, suffix, binders) :=
     if pre?
     then (ctx.pre, "PreDecidable", bindersIdents)
-    else (ctx.post, "PostDecidable", bindersIdents ++ ctx.modBinders)
+    else (ctx.post, "PostDecidable", bindersIdents ++ ctx.modBinders |>.push ⟨mkExplicitBinder ctx.retId ctx.retType⟩)
   let decidableInstName := name.appendAfter suffix
   -- let proof := tac.getD (← `(term| (by infer_instance) ))
   let tac := tac.getD (← `(Lean.Parser.Tactic.tacticSeq| skip ))
@@ -398,7 +414,7 @@ elab_rules : command
   let bindersIdents := ctx.binderIdents
   let bundle (pre? : Bool) := if pre?
     then (ctx.pre, name.appendAfter "PreDecidable", ids)
-    else (ctx.post, name.appendAfter "PostDecidable", ids ++ ctx.newIds)
+    else (ctx.post, name.appendAfter "PostDecidable", ids ++ ctx.modIds |>.push retId)
   let decideTerm bundled : CommandElabM (TSyntax `term) := do
     let (target, instname, args) := bundled
     try
@@ -408,7 +424,7 @@ elab_rules : command
       `(term| ($(mkIdent ``decide) ($target)))
   let matcherTerm ← `(term|
       match ($(Syntax.mkApp (mkIdent execName) ids)) with
-      | $(mkIdent ``DivM.res) ⟨$retId, $ret⟩ => $(← decideTerm <| bundle false)
+      | $(mkIdent ``DivM.res) $ret => $(← decideTerm <| bundle false)
       | _ => false)
   let ifTerm ← `(term| if $(← decideTerm <| bundle true) then $matcherTerm else true)
   let testerName := name.appendAfter "Tester"
