@@ -251,7 +251,7 @@ namespace AngelicChoice
 
 /- WP for NonDetT -/
 noncomputable
-def NonDetT.wp {l : Type u} [CompleteLattice l] [MAlgOrdered m l] : {α : Type u} -> NonDetT m α -> Cont l α
+def NonDetT.wp {l : Type u} [CompleteLattice l] [MAlgOrdered m l] : {α : Type u} -> NonDetT m α -> LoomCont l α
   | _, .pure ret => pure ret
   | _, .vis x f => fun post => _root_.wp x fun a => wp (f a) post
   | _, @NonDetT.pickCont _ _ τ p _ f => fun post => ⨆ a, ⌜p a⌝ ⊓ wp (f a) post
