@@ -14,7 +14,7 @@ import CaseStudies.Velvet.Syntax
 
 macro_rules
   | `(tactic|loom_solver) =>
-    `(tactic|try grind (splits := 20))
+    `(tactic| loom_solve)
 
 macro_rules
   | `(doElem|$id:ident[$idx:term] := $val:term) =>
