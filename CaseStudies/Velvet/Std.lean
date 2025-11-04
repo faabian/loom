@@ -14,7 +14,7 @@ import CaseStudies.Velvet.Syntax
 
 macro_rules
   | `(tactic|loom_solver) =>
-    `(tactic| loom_solve)
+    `(tactic| loom_auto)
 
 macro_rules
   | `(doElem|$id:ident[$idx:term] := $val:term) =>
