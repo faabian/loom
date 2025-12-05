@@ -8,7 +8,8 @@ import Loom.MonadAlgebras.WP.DoNames'
 import CaseStudies.Velvet.Std
 import CaseStudies.TestingUtil
 
-open TotalCorrectness DemonicChoice Lean.Elab.Term.DoNames
+set_option loom.semantics.termination "total"
+set_option loom.semantics.choice "demonic"
 
 -- The Euclidean algorithm for GCD is a classic example of a function requiring
 -- explicit termination measures due to the modulo operation

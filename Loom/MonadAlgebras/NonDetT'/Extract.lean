@@ -245,7 +245,7 @@ abbrev NonDetT.prop {α : Type u} : (s : NonDetT m α) -> LoomCont l α
     (⨅ t, ⌜p t⌝ ⇨ NonDetT.prop (f t) post) ⊓ (⨆ t, ⌜p t⌝)
 
 structure Extractable (x : NonDetT m α) where
-  cond : Cont l α
+  cond : LoomCont l α
   prop : ∀ post, cond post <= x.prop post
 
 omit [LawfulMonad m] [CCPOBot m] [MAlgDet m l] in

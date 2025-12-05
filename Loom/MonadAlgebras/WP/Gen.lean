@@ -62,12 +62,12 @@ section
 variable {m : Type u -> Type v} [Monad m] [LawfulMonad m] {α : Type u} {l : Type u} [CompleteLattice l]
 
 set_option linter.unusedVariables false in
-def invariantGadget (inv : List l): m PUnit := pure .unit
+def invariantGadget [MAlgOrdered m l] (inv : List l): m PUnit := pure .unit
 
 variable [MAlgOrdered m l]
 
 @[simp]
-abbrev invariants (f : List l) := f.foldr (·⊓·) ⊤
+abbrev invariantSeq (f : List l) := f.foldr (·⊓·) ⊤
 
 -- macro "invariant" t:term : invariantClause => `(invariantGadget $t)
 
@@ -81,7 +81,7 @@ def assertGadget {l : Type u} (h : l) : m PUnit := pure .unit
 
 
 set_option linter.unusedVariables false in
-def decreasingGadget (measure : ℕ) : m PUnit := pure .unit
+def decreasingGadget (measure : Option ℕ) : m PUnit := pure .unit
 
 elab "with_name_prefix" lit:name inv:term : term => do
   let ⟨maxId, _, _, cntr⟩ <- loomAssertionsMap.get
@@ -213,9 +213,9 @@ noncomputable
 def WPGen.forWithInvariant {xs : Std.Range} {init : β} {f : ℕ → β → m (ForInStep β)}
   (inv : ℕ → β → List l) (wpg : ∀ i b, WPGen (f i b)) (xs1 : xs.step = 1) (xs_le : xs.start <= xs.stop := by omega) :
     WPGen (forIn xs init (fun i b => do invariantGadget (inv i b); (f i b))) where
-    get := ⌜∀ i b, invariants (inv i b) <= (wpg i b).get fun
-      | .yield b' => invariants <| inv (i + 1) b'
-      | .done b'  => invariants <| inv xs.stop b'⌝
+    get := ⌜∀ i b, invariantSeq (inv i b) <= (wpg i b).get fun
+      | .yield b' => invariantSeq <| inv (i + 1) b'
+      | .done b'  => invariantSeq <| inv xs.stop b'⌝
       ⊓ spec
       ((inv xs.start init).foldr (·⊓·) ⊤)
       (fun b => (inv xs.stop b).foldr (·⊓·) ⊤)
@@ -224,7 +224,7 @@ def WPGen.forWithInvariant {xs : Std.Range} {init : β} {f : ℕ → β → m (F
       apply (triple_spec ..).mpr
       simp [invariantGadget]
       apply triple_forIn_range_step1 (fun i b => (inv i b).foldr (·⊓·) ⊤)
-      simp [invariants, <-xs1] at h
+      simp [invariantSeq, <-xs1] at h
       intro i b; apply (wpg i b).intro
       all_goals solve_by_elim
 

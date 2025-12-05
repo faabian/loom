@@ -13,10 +13,6 @@ import CaseStudies.Extension
 import CaseStudies.Velvet.Syntax
 
 macro_rules
-  | `(tactic|loom_solver) =>
-    `(tactic| loom_auto)
-
-macro_rules
   | `(doElem|$id:ident[$idx:term] := $val:term) =>
     `(doElem| $id:term := Array.set! $id:term $idx $val )
   | `(doElem|$id:ident[$idx:term] += $val:term) =>

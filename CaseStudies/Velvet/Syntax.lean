@@ -69,7 +69,11 @@ syntax "method" ident leafny_binder* "return" "(" ident ":" term ")"
   (ensures_caluse)* "do" doSeq
   Termination.suffix : command
 
-syntax "prove_correct" ident Termination.suffix "by" tacticSeq : command
+declare_syntax_cat prove_correct_command
+syntax "prove_correct" : prove_correct_command
+syntax "prove_correct?" : prove_correct_command
+
+syntax prove_correct_command ident Termination.suffix "by" tacticSeq : command
 
 syntax (priority := high) ident noWs "[" term "]" ":=" term : doElem
 syntax (priority := high) ident noWs "[" term "]" "+=" term : doElem
@@ -270,7 +274,10 @@ elab_rules : command
       for mutType in mutTypes do
         mutTypeProd <- `($mutType × $mutTypeProd)
       retType <- `($retType × $mutTypeProd)
+    /- We need Velvet methods to be elaborated in a modified `do`-notation.
+      For that we localy open the `DoNames` namespace which contains the extensioned `do`-notation. -/
     let defCmd <- `(command|
+      open Lean.Elab.Term.DoNames in
       set_option linter.unusedVariables false in
       def $name $bindersIdents* : VelvetM $retType:term := do $mods* $doSeq*
       $suf:suffix)
@@ -318,7 +325,7 @@ lemma triple_test (arr: arrInt) :
 
 @[incremental]
 elab_rules : command
-  | `(command| prove_correct $name:ident $suf:suffix by%$tkp $proof:tacticSeq) => do
+  | `(command| $pv:prove_correct_command $name:ident $suf:suffix by%$tkp $proof:tacticSeq) => do
     let ctx <- velvetObligations.get
     let .some obligation := ctx[name.getId]? | throwError "no obligation found"
     let bindersIdents := obligation.binderIdents
@@ -328,20 +335,34 @@ elab_rules : command
     let pre ← liftCoreM <| addPreludeToPreCond obligation.pre obligation.modIds
     let post := obligation.post
     let lemmaName := mkIdent <| name.getId.appendAfter "_correct"
-    -- let proof <- withRef tkp ``()
+    let triple <- `($(mkIdent ``triple))
     let proofSeq ← withRef tkp `(tacticSeq|
       unfold $name
       ($proof))
-
     let thmCmd <- withRef tkp `(command|
-      @[loomSpec]
+      @[$(mkIdent `loomSpec):ident]
       lemma $lemmaName $bindersIdents* :
-      triple
+      $triple
         $pre
         ($name $ids*)
         (fun $ret => $post) := by $proofSeq $suf:suffix)
+    let opts <- getOptions
+
+    /- We need to check the termination and choice semantics options before
+      stating the proof. -/
+    if opts.getString (defVal := "unspecified") `loom.semantics.choice = "unspecified" then
+      throwError "First, you need to specify the choice semantics using `set_option loom.semantics.choice <demonic/angelic>`"
+
+    if opts.getString (defVal := "unspecified") `loom.semantics.termination = "unspecified" then
+      throwError "First, you need to specify the termination semantics using `set_option loom.semantics.termination <partial/total>`"
     trace[Loom] "{thmCmd}"
-    Command.elabCommand thmCmd
+    match pv with
+    | `(prove_correct_command| prove_correct) =>
+      Command.elabCommand thmCmd
+    | `(prove_correct_command| prove_correct?) =>
+      Command.liftTermElabM do
+        Tactic.TryThis.addSuggestion (<-getRef) thmCmd
+    | _ => throwError "unexpected proof command: {pv}"
     velvetObligations.modify (·.erase name.getId)
 
 set_option linter.unusedVariables false in

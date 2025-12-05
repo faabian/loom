@@ -11,13 +11,11 @@ import Loom.MonadAlgebras.WP.DoNames'
 
 import CaseStudies.Velvet.Std
 
-open PartialCorrectness DemonicChoice Lean.Elab.Term.DoNames
 
-set_option auto.smt.trust true
-set_option auto.smt true
---try increasing this parameter if verification fails
-set_option auto.smt.timeout 4
-set_option auto.smt.solver.name "cvc5"
+set_option loom.solver.smt.timeout 4
+
+set_option loom.semantics.termination "partial"
+set_option loom.semantics.choice "demonic"
 
 
 attribute [solverHint] Array.get_set_c

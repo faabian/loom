@@ -13,13 +13,8 @@ import Loom.MonadAlgebras.WP.DoNames'
 
 import CaseStudies.Velvet.Std
 
-open TotalCorrectness DemonicChoice Lean.Elab.Term.DoNames
-/-
-set_option auto.smt.trust true
-set_option auto.smt true
-set_option auto.smt.timeout 4
-set_option auto.smt.solver.name "cvc5"
--/
+set_option loom.semantics.termination "partial"
+set_option loom.semantics.choice "demonic"
 
 method test1 (n : Nat) return (res : Nat)
   ensures n = res

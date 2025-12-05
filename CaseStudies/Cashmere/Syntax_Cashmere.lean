@@ -247,6 +247,7 @@ macro_rules
           for _ in Lean.Loop.mk do
             invariantGadget [ $[$inv:term],* ]
             onDoneGadget ($invd_some:term)
+            decreasingGadget none
             if $t then
               $seq:doSeq
             else break)

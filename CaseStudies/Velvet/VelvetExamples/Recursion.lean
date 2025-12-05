@@ -11,7 +11,8 @@ import Loom.MonadAlgebras.WP.DoNames'
 import CaseStudies.Velvet.Std
 import CaseStudies.TestingUtil
 
-open TotalCorrectness DemonicChoice Lean.Elab.Term.DoNames
+set_option loom.semantics.termination "total"
+set_option loom.semantics.choice "demonic"
 
 method simple_recursion (x : Nat) return (res: Nat)
   require True

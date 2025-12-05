@@ -11,7 +11,8 @@ import Loom.MonadAlgebras.WP.DoNames'
 import CaseStudies.Velvet.Std
 import CaseStudies.TestingUtil
 
-open PartialCorrectness DemonicChoice Lean.Elab.Term.DoNames
+set_option loom.semantics.termination "partial"
+set_option loom.semantics.choice "demonic"
 
 section insertionSort
 
@@ -125,12 +126,7 @@ method sqrt (x: ℕ) return (res: ℕ)
       i := i + 1
     return i - 1
 
-set_option auto.smt.trust true
-set_option auto.smt true
-set_option auto.smt.timeout 4
-set_option auto.smt.solver.name "cvc5"
-
 prove_correct sqrt by
-  loom_solve <;> auto [*]
+  loom_solve <;> loom_smt [*]
 
 end squareRoot

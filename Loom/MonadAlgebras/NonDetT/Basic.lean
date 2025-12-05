@@ -211,14 +211,16 @@ noncomputable
 def WPGen.forWithInvariantLoop {β}
   {init : β} {f : Unit -> β → NonDetT m (ForInStep β)}
   (inv : β → List l) (on_done' : β → l)
+  (measure : β → Option ℕ)
   (wpg : ∀ b, WPGen (f () b)) :
     WPGen (forIn Lean.Loop.mk init (fun u b => do
         invariantGadget (inv b)
         onDoneGadget (on_done' b)
+        decreasingGadget (measure b)
         f u b)) where
-    get := ⌜∀ b, invariants (inv b) <= (wpg b).get fun
-      | .yield b' => invariants <| inv b'
-      | .done b'  => invariants (inv b') ⊓ on_done' b'⌝
+    get := ⌜∀ b, invariantSeq (inv b) <= (wpg b).get fun
+      | .yield b' => invariantSeq <| inv b'
+      | .done b'  => invariantSeq (inv b') ⊓ on_done' b'⌝
       ⊓ spec
       ((inv init).foldr (·⊓·) ⊤)
       (fun b => (inv b).foldr (·⊓·) ⊤ ⊓ on_done' b)
@@ -371,14 +373,16 @@ noncomputable
 def WPGen.forWithInvariantLoop {β}
   {init : β} {f : Unit -> β → NonDetT m (ForInStep β)}
   (inv : β → List l) (on_done' : β → l)
+  (measure : β → Option ℕ)
   (wpg : ∀ b, WPGen (f () b)) :
     WPGen (forIn Lean.Loop.mk init (fun u b => do
         invariantGadget (inv b)
         onDoneGadget (on_done' b)
+        decreasingGadget (measure b)
         f u b)) where
-    get := ⌜∀ b, invariants (inv b) <= (wpg b).get fun
-      | .yield b' => invariants <| inv b'
-      | .done b'  => invariants (inv b') ⊓ on_done' b'⌝
+    get := ⌜∀ b, invariantSeq (inv b) <= (wpg b).get fun
+      | .yield b' => invariantSeq <| inv b'
+      | .done b'  => invariantSeq (inv b') ⊓ on_done' b'⌝
       ⊓ spec
       ((inv init).foldr (·⊓·) ⊤)
       (fun b => (inv b).foldr (·⊓·) ⊤ ⊓ on_done' b)
@@ -545,9 +549,9 @@ def WPGen.forWithInvariantLoop {β}
         onDoneGadget (on_done' b)
         decreasingGadget (measure b)
         f u b)) where
-    get := ⌜∀ b, invariants (inv b) <= (wpg b).get fun
-      | .yield b' => (invariants (inv b')) ⊓ ⌜with_name_prefix `decreasing (measure b' < measure b)⌝
-      | .done b'  => invariants (inv b') ⊓ on_done' b'⌝
+    get := ⌜∀ b, invariantSeq (inv b) <= (wpg b).get fun
+      | .yield b' => (invariantSeq (inv b')) ⊓ ⌜with_name_prefix `decreasing (measure b' < measure b)⌝
+      | .done b'  => invariantSeq (inv b') ⊓ on_done' b'⌝
       ⊓ spec
         ((inv init).foldr (·⊓·) ⊤)
         (fun b => (inv b).foldr (·⊓·) ⊤ ⊓ on_done' b)
@@ -700,9 +704,9 @@ def WPGen.forWithInvariantLoop {β}
         onDoneGadget (on_done' b)
         decreasingGadget (measure b)
         f u b)) where
-    get := ⌜∀ b, invariants (inv b) <= (wpg b).get fun
-      | .yield b' => (invariants (inv b')) ⊓ ⌜with_name_prefix `decreasing (measure b' < measure b)⌝
-      | .done b'  => invariants (inv b') ⊓ on_done' b'⌝
+    get := ⌜∀ b, invariantSeq (inv b) <= (wpg b).get fun
+      | .yield b' => (invariantSeq (inv b')) ⊓ ⌜with_name_prefix `decreasing (measure b' < measure b)⌝
+      | .done b'  => invariantSeq (inv b') ⊓ on_done' b'⌝
       ⊓ spec
         ((inv init).foldr (·⊓·) ⊤)
         (fun b => (inv b).foldr (·⊓·) ⊤ ⊓ on_done' b)

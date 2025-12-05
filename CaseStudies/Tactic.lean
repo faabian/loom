@@ -7,6 +7,7 @@ import Loom.MonadAlgebras.WP.Tactic
 -- import Loom.MonadAlgebras.WP.DoNames'
 import Loom.MonadAlgebras.WP.Gen
 import Loom.Tactic
+import Loom.SMT
 
 import CaseStudies.Extension
 import CaseStudies.Macro
@@ -73,7 +74,7 @@ elab_rules : tactic
       wpgen
       try simp only [loomWpSimp]
       try unfold spec
-      try simp only [invariants]
+      try simp only [invariantSeq]
       try simp only [WithName.mk']
       try simp only [WithName.erase]
       try simp only [typeWithName.erase]
@@ -100,7 +101,7 @@ elab_rules : tactic
     for c in ctx do
       hints := hints.push $ <- `(Auto.hintelem| $(mkIdent c):ident)
     hints := hints.push $ <- `(Auto.hintelem| *)
-    let vlsAuto <- `(tactic| try (try simp only [loomAbstractionSimp] at *); auto [$hints,*])
+    let vlsAuto <- `(tactic| try (try simp only [loomAbstractionSimp] at *); loom_smt [$hints,*])
     evalTactic vlsAuto
 
 elab_rules : tactic
@@ -151,17 +152,30 @@ elab "loom_solve?" : tactic => withMainContext do
   try simp only [$(mkIdent `loomAbstractionSimp):ident] at *
   wpgen
   try simp only [$(mkIdent `loomWpSimp):ident]
-  try simp only [$(mkIdent `WithName):ident]
-  try simp only [$(mkIdent `typeWithName):ident]
+  try simp only [$(mkIdent ``WithName):ident]
+  try simp only [$(mkIdent ``typeWithName):ident]
   try unfold spec
-  try simp only [$(mkIdent `invariants):ident]
-  try simp only [$(mkIdent `WithName.mk'):ident]
-  try simp only [$(mkIdent `WithName.erase):ident]
-  try simp only [$(mkIdent `typeWithName.erase):ident]
-  try simp only [$(mkIdent `List.foldr):ident]
+  try simp only [$(mkIdent ``invariantSeq):ident]
+  try simp only [$(mkIdent ``WithName.mk'):ident]
+  try simp only [$(mkIdent ``WithName.erase):ident]
+  try simp only [$(mkIdent ``typeWithName.erase):ident]
+  try simp only [$(mkIdent ``List.foldr):ident]
   try simp only [$(mkIdent `loomLogicSimp):ident]
   try simp only [$(mkIdent `simpMAlg):ident]
-  repeat' (apply $(mkIdent `And.intro) <;> (repeat loom_intro))
-  any_goals auto [$hints,*]
+  repeat' (apply $(mkIdent ``And.intro) <;> (repeat loom_intro))
+  any_goals loom_smt [$hints,*]
   ))
   Tactic.TryThis.addSuggestion (<-getRef) tac
+
+elab_rules : tactic
+  | `(tactic| loom_solver) => withMainContext do
+    let opts <- getOptions
+    let solver := opts.getString (defVal := "grind") `loom.solver
+    match solver with
+      | "grind" =>
+        /- In case of `grind` solver, we need  to fetch the number of splits from the options first. -/
+        let splits := Lean.Syntax.mkNatLit <| (opts.getNat (defVal := 20) `loom.solver.grind.splits)
+        evalTactic $ <- `(tactic| try grind ($(mkIdent `splits):ident := $splits))
+      | "custom" =>
+        evalTactic $ <- `(tactic| fail "Custom solver is not specified")
+      | _ => evalTactic $ <- `(tactic| loom_auto)
