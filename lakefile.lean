@@ -3,6 +3,7 @@ open Lake DSL System
 
 require "leanprover-community" / "mathlib" @ git "v4.23.0"
 require auto from git "https://github.com/leanprover-community/lean-auto.git" @ "2c088e7617d6e2018386de23b5df3b127fae4634"
+require REPL from git "https://github.com/leanprover-community/repl" @ "8e951c49f202d47dba756cfffe8b918aedf1ea71"
 
 package Loom where
   leanOptions :=  #[⟨`pp.unicode.fun , true⟩] -- pretty-prints `fun a ↦ b`
