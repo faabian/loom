@@ -75,15 +75,13 @@ elab_rules : tactic
       try simp only [loomWpSimp]
       try unfold spec
       try simp only [invariantSeq]
-      try simp only [WithName.mk']
-      try simp only [WithName.erase]
-      try simp only [typeWithName.erase]
       try simp only [List.foldr]
       try simp only [loomLogicSimp]
       try simp only [iSup_apply, iSup_Prop_eq, exists_and_left, exists_and_right,
                      iInf_apply, iInf_Prop_eq, forall_and_left, forall_and_right]
       repeat loom_intro
-      repeat' (loom_split <;> (repeat loom_intro))))
+      repeat' (loom_split <;> (repeat loom_intro))
+      loom_rename))
     evalTactic vlsIntro
 
 elab_rules : tactic
@@ -117,16 +115,23 @@ elab_rules : tactic
       let vlsUnfold ← `(tactic| loom_unfold)
       let vlsSolve ← `(tactic| loom_solver)
       evalTactic vlsIntro
+      let ⟨_, _, ns, _⟩ <- loomAssertionsMap.get
       let res <- anyGoalsWithTag fun _mvarId => do
-        let stx_res <- getAssertionStx
+        let stx_res <- try getAssertionStx catch _ => pure none
         evalTactic vlsUnfold
         let mvarId <- getMainGoal
         evalTactic vlsSolve
         if (<- getUnsolvedGoals).length > 0 then
-          match stx_res with
-          | some stx =>
-            return some (.mkSimple stx.raw.prettyPrint.pretty, (mvarId, some stx))
-          | none =>
+          let tag <- mvarId.getTag
+          let isDerived := ns.contains tag || ns.toList.any fun (n, _) =>
+            let s := tag.toString
+            let p := n.toString
+            s.startsWith (p ++ "_") || s.startsWith (p ++ ".")
+          let isEnsures := ns.contains (Name.mkStr (Name.mkSimple "ensures") tag.toString)
+
+          if stx_res.isSome || isDerived || isEnsures then
+            return some (tag, (mvarId, stx_res))
+          else
             return some (`unnamed, (mvarId, none))
         else return none
       let tryVlsSolve ← `(tactic| all_goals try loom_solver)

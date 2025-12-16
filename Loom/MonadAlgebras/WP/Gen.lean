@@ -94,7 +94,7 @@ elab "with_name_prefix" lit:name inv:term : term => do
     | some resId => resId
     | none => 0
   let maxIdLocal := 1 + cntrElem
-  let invName := lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
+  let invName := if maxIdLocal == 1 then lit.getName else lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
   loomAssertionsMap.modify (fun res => {
       syntaxStore := res.syntaxStore.insert newMaxId inv
       nameStore := res.nameStore.insert invName newMaxId
@@ -114,7 +114,7 @@ elab "type_with_name_prefix" lit:name inv:term : term => do
     | some resId => resId
     | none => 0
   let maxIdLocal := 1 + cntrElem
-  let invName := lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
+  let invName := if maxIdLocal == 1 then lit.getName else lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
   loomAssertionsMap.modify (fun res => {
       syntaxStore := res.syntaxStore.insert newMaxId inv
       nameStore := res.nameStore.insert invName newMaxId
