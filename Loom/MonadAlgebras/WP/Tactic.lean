@@ -205,7 +205,14 @@ elab "loom_split" : tactic => do
              evalTactic $ <- `(tactic| apply And.intro)
     else evalTactic $ <- `(tactic| apply And.intro)
   else
+    let tag ← getMainTag
     evalTactic $ <- `(tactic| apply And.intro)
+    if tag != Name.anonymous && tag != `unnamed then
+      let goals ← getGoals
+      if let g1 :: g2 :: gs := goals then
+        g1.setTag tag
+        g2.setTag tag
+        setGoals (g1 :: g2 :: gs)
 
 
 elab "loom_rename" : tactic => do
