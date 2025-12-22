@@ -9,7 +9,7 @@ import CaseStudies.TestingUtil
 
 set_option loom.semantics.termination "partial"
 set_option loom.semantics.choice "demonic"
-set_option maxHeartbeats 10000000
+set_option maxHeartbeats 0
 
 -- Definitions for the problem domain
 
@@ -564,4 +564,27 @@ prove_correct min_knight_moves by
 #guard (min_knight_moves 0 0 4 5).extract == some 3
 #guard (min_knight_moves 0 0 5 5).extract == some 4
 #guard (min_knight_moves 0 0 0 0).extract == some 0
-#eval min_knight_moves 0 0 10 10
+
+def benchmark_bfs (ns : List Nat) : IO Unit := do
+  IO.println "Starting BFS Benchmark..."
+  let mut results : List (Nat × Nat) := []
+  for n in ns do
+    let start ← IO.getNumHeartbeats
+    let res := (min_knight_moves 0 0 (n : Int) (n : Int)).extract
+    -- Force evaluation of the pure value
+    let _ := toString res
+    let stop ← IO.getNumHeartbeats
+    let hb := stop - start
+    IO.println s!"Target: ({n}, {n}) | Result: {res} | Heartbeats: {hb}"
+    results := results ++ [(n, hb)]
+
+  IO.println "\nHeartbeats Graph:"
+  let max_hb := results.foldl (fun m (_, hb) => Nat.max m hb) 0
+  let width := 50
+  for (n, hb) in results do
+    let bar_len := if max_hb == 0 then 0 else (hb * width) / max_hb
+    let bar := String.mk (List.replicate bar_len '#')
+    IO.println s!"{n} | {bar} {hb}"
+
+-- Run benchmark for diagonal targets from (10,10) to (50, 50)
+#eval benchmark_bfs [10, 20, 30, 40, 50]
