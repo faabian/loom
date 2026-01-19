@@ -83,45 +83,45 @@ def assertGadget {l : Type u} (h : l) : m PUnit := pure .unit
 set_option linter.unusedVariables false in
 def decreasingGadget (measure : Option ℕ) : m PUnit := pure .unit
 
+/-- Get a deduplicated name for any clause.
+    If a name has been seen before, appends `_N` where N is the occurrence count.
+    Our convention is the following: the first occurrence of a name gets no suffix,
+    second gets `_1`, third gets `_2`, etc. -/
+private def getDeduplicatedName (baseName : Name) : StateT LoomAssertionsMap Id Name := do
+  let state ← get
+  let count := state.nameCounter.getD baseName 0
+  set { state with nameCounter := state.nameCounter.insert baseName (count + 1) }
+  match count with
+  | 0 => return baseName
+  | _ => match baseName with
+    | .str p s => return Name.mkStr p (s ++ "_" ++ toString count)
+    | _ => return baseName
+
 elab "with_name_prefix" lit:name inv:term : term => do
-  let ⟨maxId, _, _, cntr⟩ <- loomAssertionsMap.get
-  let newMaxId := maxId + 1
-  let coreName := match (← Term.getDeclName?) with
-    | some res => res
-    | none => `nameless
-  let localName := (Lean.Name.mkSimple (lit.getName.toString ++ "_" ++ coreName.toString))
-  let cntrElem := match cntr.get? localName with
-    | some resId => resId
-    | none => 0
-  let maxIdLocal := 1 + cntrElem
-  let invName := if maxIdLocal == 1 then lit.getName else lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
-  loomAssertionsMap.modify (fun res => {
-      syntaxStore := res.syntaxStore.insert newMaxId inv
-      nameStore := res.nameStore.insert invName newMaxId
+  let state ← loomAssertionsMap.get
+  let rawName := lit.getName
+  let (invName, newState) := getDeduplicatedName rawName |>.run state
+  let newMaxId := newState.maxId + 1
+  loomAssertionsMap.modify (fun _ => {
+      syntaxStore := newState.syntaxStore.insert newMaxId inv
+      nameStore := newState.nameStore.insert invName newMaxId
       maxId := newMaxId
-      nameCounter := res.nameCounter.insert localName maxIdLocal
+      nameCounter := newState.nameCounter
       })
-  Term.elabTerm (<- ``(WithName $inv $(Lean.quoteNameMk invName))) none
+  Term.elabTerm (← ``(WithName $inv $(Lean.quoteNameMk invName))) none
 
 elab "type_with_name_prefix" lit:name inv:term : term => do
-  let ⟨maxId, _, _, cntr⟩ <- loomAssertionsMap.get
-  let newMaxId := maxId + 1
-  let coreName := match (← Term.getDeclName?) with
-    | some res => res
-    | none => `nameless
-  let localName := (Lean.Name.mkSimple (lit.getName.toString ++ "_" ++ coreName.toString))
-  let cntrElem := match cntr.get? localName with
-    | some resId => resId
-    | none => 0
-  let maxIdLocal := 1 + cntrElem
-  let invName := if maxIdLocal == 1 then lit.getName else lit.getName.toString ++ "_" ++ toString maxIdLocal.toNat |>.toName
-  loomAssertionsMap.modify (fun res => {
-      syntaxStore := res.syntaxStore.insert newMaxId inv
-      nameStore := res.nameStore.insert invName newMaxId
+  let state ← loomAssertionsMap.get
+  let rawName := lit.getName
+  let (invName, newState) := getDeduplicatedName rawName |>.run state
+  let newMaxId := newState.maxId + 1
+  loomAssertionsMap.modify (fun _ => {
+      syntaxStore := newState.syntaxStore.insert newMaxId inv
+      nameStore := newState.nameStore.insert invName newMaxId
       maxId := newMaxId
-      nameCounter := res.nameCounter.insert localName maxIdLocal
+      nameCounter := newState.nameCounter
       })
-  Term.elabTerm (<- ``(typeWithName $inv $(Lean.quoteNameMk invName))) none
+  Term.elabTerm (← ``(typeWithName $inv $(Lean.quoteNameMk invName))) none
 
 
 def termBeforeInvariant := Parser.withForbidden "invariant" Parser.termParser

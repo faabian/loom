@@ -230,25 +230,34 @@ private def Array.andListWithName (ts : Array (TSyntax `term)) (name_prefix : TS
       t <- `(term| (with_name_prefix $name_prefix:name $t') ∧ $t)
     return t
 
-private def Array.andListWithNames (ts : Array (TSyntax `term)) (names : Array (Option (TSyntax `ident))) (defaultName : Name) (ns : Name) : TermElabM (TSyntax `term) := do
+private def Array.andListWithNames (ts : Array (TSyntax `term)) (names : Array (Option (TSyntax `ident))) (defaultName : Name) (typePrefix : String) : TermElabM (TSyntax `term) := do
   if ts.size = 0 then `(term| True) else
-    let mkNamed (t : TSyntax `term) (n? : Option (TSyntax `ident)) : TermElabM (TSyntax `term) := do
-      match n? with
-      | some n =>
-        let nName := Name.mkStr ns n.getId.toString
-        let nStx := Syntax.mkNameLit s!"`{nName}"
-        let nStx : TSyntax `name := ⟨nStx⟩
-        `(term| with_name_prefix $nStx $t)
-      | none =>
-        let nName := defaultName
-        let nStx := Syntax.mkNameLit s!"`{nName}"
-        let nStx : TSyntax `name := ⟨nStx⟩
-        `(term| with_name_prefix $nStx $t)
+    let mut nameCounts : Std.HashMap String Nat := {}
+    let mut results : Array (TSyntax `term) := #[]
 
-    let mut t <- mkNamed ts[0]! names[0]!
-    for i in [1:ts.size] do
-      let t' <- mkNamed ts[i]! names[i]!
-      t <- `(term| $t' ∧ $t)
+    for i in [:ts.size] do
+      let t := ts[i]!
+      let n? := names[i]!
+
+      let baseName := match n? with
+        | some n => n.getId.toString
+        | none => defaultName.toString
+
+      let count := nameCounts.getD baseName 0
+      nameCounts := nameCounts.insert baseName (count + 1)
+
+      let deduplicatedName := if count = 0 then baseName else s!"{baseName}_{count}"
+      let finalName := typePrefix ++ deduplicatedName
+
+      let nStx := Syntax.mkNameLit s!"`{finalName}"
+      let nStx : TSyntax `name := ⟨nStx⟩
+      let namedTerm ← `(term| with_name_prefix $nStx $t)
+      results := results.push namedTerm
+
+    let mut t := results[0]!
+    for i in [1:results.size] do
+      let t' := results[i]!
+      t ← `(term| $t' ∧ $t)
     return t
 
 private def Array.andList (ts : Array (TSyntax `term)) : TermElabM (TSyntax `term) := do
@@ -272,6 +281,8 @@ elab_rules : command
   $[ensures $[$ensNames :]? $ens:term]* do $doSeq:doSeq
   $suf:suffix
   ) => do
+  -- Reset the nameCounter at the start of each method to ensure fresh naming per method
+  loomAssertionsMap.modify (fun s => { s with nameCounter := {} })
   let (defCmd, obligation, testingCtx) ← Command.runTermElabM fun _vs => do
     let bindersIdents ← toBracketedBinderArrayLeafny binders
 
@@ -304,8 +315,8 @@ elab_rules : command
       $suf:suffix)
     -- let lemmaName := mkIdent <| name.getId.appendAfter "_correct"
 
-    let pre <- req.andListWithNames reqNames (Name.mkSimple "require") Name.anonymous
-    let post <- ens.andListWithNames ensNames (Name.mkSimple "ensures") (Name.mkSimple "ensures")
+    let pre <- req.andListWithNames reqNames (Name.mkSimple "require") "req."
+    let post <- ens.andListWithNames ensNames (Name.mkSimple "ensures") "ens."
 
     let namelessPre <- req.andList
     let namelessPre <- addPreludeToPreCond namelessPre modIds

@@ -45,8 +45,8 @@ elab "invariants" invs:term : term => do
 To turn off this warning, use `set_option loom.linter.warnings false`."
   Term.elabTerm (<- `(invariantGadget $invs:term)) none
 
-macro "assert" n:ident ":" t:term : term => `(assertGadget (with_name_prefix $(Syntax.mkNameLit s!"`{n.getId}") $t))
-macro "assert" t:term : term => `(assertGadget (with_name_prefix `assert $t))
+macro "assert" n:ident ":" t:term : term => `(assertGadget (with_name_prefix $(Syntax.mkNameLit s!"`assert.{n.getId}") $t))
+macro "assert" t:term : term => `(assertGadget (with_name_prefix `assert.assert $t))
 
 
 declare_syntax_cat doneWith
@@ -74,7 +74,7 @@ syntax "for" ident "in" termBeforeInvariant
   "do" doSeq : doElem
 
 macro_rules
-  | `(doElem| let $x:term :| $t) => `(doElem| let $x:term <- pickSuchThat _ (fun $x => type_with_name_prefix `choice $t))
+  | `(doElem| let $x:term :| $t) => `(doElem| let $x:term <- pickSuchThat _ (fun $x => type_with_name_prefix `choice.choice $t))
 
 /-
 ### While loop elaboration rules
@@ -109,7 +109,7 @@ macro_rules
     `(doElem|
       for _ in Lean.Loop.mk do
         $invs:term
-        onDoneGadget (with_name_prefix `done ¬$t:term)
+        onDoneGadget (with_name_prefix `done.done ¬$t:term)
         $decr:term
         if $t then
           $seq:doSeq
@@ -124,7 +124,7 @@ macro_rules
         let name := match name? with
           | some n => n.getId
           | none => `invariant
-        `(with_name_prefix $(Syntax.mkNameLit s!"`{name}") $inv)
+        `(with_name_prefix $(Syntax.mkNameLit s!"`inv.{name}") $inv)
       let invs <- `(invariants [ $invsTerms,* ])
       let (doneName, invd_some) ← match inv_done with
       | some invd_some =>
@@ -138,11 +138,11 @@ macro_rules
         let decName := match decName with
           | some (some n) => n.getId
           | _ => `decreasing
-        let decr <- withRef measure_some `(decreasing type_with_name_prefix $(Syntax.mkNameLit s!"`{decName}") $measure_some)
+        let decr <- withRef measure_some `(decreasing type_with_name_prefix $(Syntax.mkNameLit s!"`dec.{decName}") $measure_some)
         `(doElem|
           for _ in Lean.Loop.mk do
             $invs:term
-            onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`{doneName}") $invd_some:term)
+            onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`done.{doneName}") $invd_some:term)
             $decr:term
             if $t then
               $seq:doSeq
@@ -153,12 +153,12 @@ macro_rules
           let name := match name? with
             | some n => n.getId
             | none => `invariant
-          `(with_name_prefix $(Syntax.mkNameLit s!"`{name}") $inv)
+          `(with_name_prefix $(Syntax.mkNameLit s!"`inv.{name}") $inv)
         let invs <- `(invariants [ $invsTerms,* ])
         `(doElem|
           for _ in Lean.Loop.mk do
             $invs:term
-            onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`{doneName}") $invd_some:term)
+            onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`done.{doneName}") $invd_some:term)
             $decr:term
             if $t then
               $seq:doSeq
@@ -182,7 +182,7 @@ macro_rules
       let name := match name? with
         | some n => n.getId
         | none => `invariant
-      `(with_name_prefix $(Syntax.mkNameLit s!"`{name}") $inv)
+      `(with_name_prefix $(Syntax.mkNameLit s!"`inv.{name}") $inv)
     let invs <- `(invariants [ $invsTerms,* ])
     let (doneName, invd_some) ← match inv_done with
     | some invd_some =>
@@ -199,7 +199,7 @@ macro_rules
       `(doElem|
         for _ in Lean.Loop.mk do
           $invs:term
-          onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`{doneName}") $invd_some:term)
+          onDoneGadget (with_name_prefix $(Syntax.mkNameLit s!"`done.{doneName}") $invd_some:term)
           $decr:term
           if ∃ $x:ident, $t then
             let $x :| $t
@@ -214,7 +214,7 @@ macro_rules
         let name := match name? with
           | some n => n.getId
           | none => `invariant
-        `(with_name_prefix $(Syntax.mkNameLit s!"`{name}") $inv)
+        `(with_name_prefix $(Syntax.mkNameLit s!"`inv.{name}") $inv)
       let invs <- `(invariants [ $invsTerms,* ])
       match seq with
       | `(doSeq| $[$seq:doElem]*)
