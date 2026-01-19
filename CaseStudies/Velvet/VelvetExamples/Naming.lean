@@ -86,7 +86,9 @@ prove_correct NamingDemo by
 end Demonstration
 
 /- Use custom solver so goals remain unsolved for inspection -/
-set_option loom.solver "custom"
+
+macro_rules
+  | `(tactic| loom_solver) => `(tactic| skip)
 
 section PartialCorrectness
 
