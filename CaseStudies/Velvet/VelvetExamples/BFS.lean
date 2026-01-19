@@ -111,397 +111,490 @@ prove_correct min_knight_moves by
   -- Naming scheme: .entry (outer loop), .loop_pos (inner if true), .loop_neg (inner if false), .exit (loop exit)
 
   case queue_shortest.entry =>
-    -- Goal: QueueShortest queue.tail! (sx, sy)
-    -- Previous proof:
-    -- simp at *
-    -- intros x y d h_in d' h_path
-    -- replace h_in : (x, y, d) ∈ queue := by aesop
-    -- exact queue_shortest x y d h_in d' h_path
-    sorry
+    simp at *
+    intros x y d h_in d' h_path
+    replace h_in : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    exact queue_shortest x y d h_in d' h_path
 
   case all_valid.entry =>
-    -- Goal: AllValidPaths queue.tail! (sx, sy)
-    -- Previous proof:
-    -- simp at *
-    -- intros x y d h_in
-    -- replace h_in : (x, y, d) ∈ queue := by aesop
-    -- exact all_valid x y d h_in
-    sorry
+    simp at *
+    intros x y d h_in
+    replace h_in : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    exact all_valid x y d h_in
 
   case sorted.entry =>
-    -- Goal: IsSorted queue.tail!
-    -- Previous proof:
-    -- rw [IsSorted]
-    -- cases queue <;> simp_all [List.chain'_iff_pairwise]
-    -- case cons head tail =>
-    --   rw [IsSorted] at sorted
-    --   simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
-    --   exact sorted.2
-    sorry
+    rw [IsSorted]
+    cases h_q : found_dist.snd.fst with
+    | nil => aesop
+    | cons hd tl =>
+      simp only [h_q, IsSorted, List.map_cons] at sorted
+      exact sorted.tail
 
   case found_correct.entry =>
-    -- Goal: ValidPath (sx, sy) (tx, ty) d  (first part of IsShortestDistance)
-    -- Previous proof:
-    -- have h_in : (tx, ty, d) ∈ queue := by
-    --   rw [←a_2, ←a_3, ←(Option.some_inj.1 a_4)]
-    --   cases queue <;> simp_all
-    -- exact all_valid tx ty d h_in
-    sorry
+    have h_i_eq_d : i = d := Option.some_injective _ h
+    have h_in : (tx, ty, d) ∈ found_dist.snd.fst := by
+      cases h_q : found_dist.snd.fst with
+      | nil => simp [h_q] at h_1
+      | cons hd tl =>
+        simp [h_q] at h_3
+        rw [h_3, h_4, h_5, h_i_eq_d]
+        apply List.mem_cons_self
+    rw [IsShortestDistance]
+    exact ⟨all_valid tx ty d h_in, queue_shortest tx ty d h_in⟩
 
   case queue_bound.entry =>
-    -- Goal: k ≤ hd + 1
-    -- Previous proof:
-    -- have h_q : queue = (i, i_1, i_2) :: queue.tail! := by cases queue <;> simp_all
-    -- have h_k_bound : k ≤ i_2 + 1 := by
-    --   apply queue_bound x y k
-    --   · rw [h_q]; simp [List.mem_cons]; right; exact a_4
-    --   · rw [h_q]; rfl
-    -- have h_i2_le_hd : i_2 ≤ hd := by
-    --   have := sorted
-    --   rw [h_q, IsSorted] at this
-    --   simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at this
-    --   apply this.1 hd
-    --   simp only [List.mem_map, Prod.exists, exists_eq_right]
-    --   use hx, hy
-    --   replace a_5 := List.head_of_head?_eq_some a_5
-    --   grind
-    -- grind
-    sorry
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons head tail =>
+      -- Simplify h_6 and h using the decomposition
+      simp only [h_q, List.tail!_cons] at h_6 h
+      -- (x, y, k) is in the full queue
+      have h_in_queue : (x, y, k) ∈ found_dist.snd.fst := by
+        rw [h_q]; exact List.mem_cons_of_mem _ h_6
+      -- Get head = (i_1, i_2, i) from h_3
+      simp only [h_q] at h_3
+      -- Get k ≤ i + 1 from queue_bound
+      have h_k_bound : k ≤ i + 1 := by
+        apply queue_bound x y k h_in_queue i_1 i_2 i
+        rw [h_q, h_3]; rfl
+      -- Case split on tail to get hd membership
+      cases h_tail : tail with
+      | nil => simp [h_tail] at h
+      | cons hd' tl' =>
+        simp only [h_tail, List.head?_cons, Option.some.injEq] at h
+        -- h : hd' = (hx, hy, hd)
+        -- Show i ≤ hd from sorted
+        rw [h_q, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
+        have h_i_le_hd : i ≤ hd := by
+          rw [h_3] at sorted
+          apply sorted.1 hd
+          simp only [List.mem_map, Prod.exists, exists_eq_right]
+          rw [h_tail]
+          use hx, hy
+          rw [← h]
+          apply List.mem_cons_self
+        omega
 
   case all_valid_move.loop_pos =>
     -- Goal: AllValidPaths (queue ++ [(nx, ny, d+1)]) (sx, sy)
     -- Previous proof:
-    -- simp at *
-    -- intros x y d_1 h_in
-    -- simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h_in
-    -- cases h_in with
-    -- | inl h_in => exact all_valid_move x y d_1 h_in
-    -- | inr h_in =>
-    --   simp only [Prod.mk.injEq] at h_in
-    --   rw [h_in.1, h_in.2.1, h_in.2.2]
-    --   apply ValidPath.step
-    --   · exact valid_current
-    --   · grind
-    sorry
+    rw [AllValidPaths]
+    intros x y d h_in
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h_in
+    cases h_in with
+    | inl h_in => exact all_valid_move x y d h_in
+    | inr h_in =>
+      simp only [Prod.mk.injEq] at h_in
+      rw [h_in.1, h_in.2.1, h_in.2.2]
+      apply ValidPath.step valid_current
+      -- Need to show (i_1 + i_4 - i_1, i_2 + i - i_2) ∈ knightMoves
+      -- i.e., (i_4, i) ∈ knightMoves
+      have h_move : (i_4, i) ∈ moves_rem := by
+        cases h_rem : moves_rem with
+        | nil => simp [h_rem] at if_pos_1
+        | cons hd tl => simp [h_rem] at h; rw [← h]; apply List.mem_cons_self
+      have h_in_knight : (i_4, i) ∈ knightMoves := valid_moves i_4 i h_move
+      simp only [add_sub_cancel_left]
+      exact h_in_knight
 
   case queue_shortest_move.loop_pos =>
-    -- Goal: QueueShortest (queue ++ [(nx, ny, d+1)]) (sx, sy)
-    -- Previous proof:
-    -- simp at *
-    -- intros x y d h_in d' h_path
-    -- simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h_in
-    -- cases h_in with
-    -- | inl h_in => exact queue_shortest_move x y d h_in d' h_path
-    -- | inr h_in =>
-    --   contrapose! visited_complete_move
-    --   rw [VisitedComplete]
-    --   push_neg
-    --   use x, y, d'
-    --   constructor
-    --   · exact h_path
-    --   · simp only [Prod.mk.injEq] at h_in
-    --     constructor
-    --     · grind
-    --     · convert if_pos_1 <;> grind
-    sorry
+    rw [QueueShortest]
+    intros x y d h_in d' h_path
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h_in
+    cases h_in with
+    | inl h_in => exact queue_shortest_move x y d h_in d' h_path
+    | inr h_in =>
+      simp only [Prod.mk.injEq] at h_in
+      by_cases h_d' : d' ≤ i_3
+      · -- If d' ≤ i_3, node should be in visited, but it's not
+        have h_not_visited : (i_1 + i_4, i_2 + i) ∉ moves_rem.snd.snd := by
+          simp only [List.contains_eq_mem, Bool.not_eq_true, decide_eq_false_iff_not] at if_pos
+          exact if_pos
+        rw [h_in.1, h_in.2.1] at h_path
+        have h_in_visited := visited_complete_move (i_1 + i_4) (i_2 + i) d' h_path h_d'
+        exact absurd h_in_visited h_not_visited
+      · push_neg at h_d'; omega
 
   case sorted_move.loop_pos =>
     -- Goal: IsSorted (queue ++ [(nx, ny, d+1)])
-    -- Previous proof:
-    -- rw [IsSorted]
-    -- simp only [List.map_append, List.map_cons, List.map_nil]
-    -- rw [List.chain'_append]
-    -- constructor
-    -- · exact sorted_move
-    -- · simp only [List.chain'_singleton, List.getLast?_map, Option.mem_def, Option.map_eq_some_iff,
-    --     Prod.exists, exists_eq_right, List.head?_cons, Option.some.injEq, forall_eq',
-    --     forall_exists_index, true_and]
-    --   intros d_last x y h_last
-    --   have h_in : (x, y, d_last) ∈ queue_1 := by
-    --     rw [List.getLast?_eq_some_iff] at h_last
-    --     grind
-    --   have := dist_bounds x y d_last h_in
-    --   exact this.2
-    sorry
+    rw [IsSorted]
+    simp only [List.map_append, List.map_cons, List.map_nil]
+    rw [List.chain'_append]
+    constructor
+    · rw [IsSorted] at sorted_move; exact sorted_move
+    · simp only [List.chain'_singleton, List.getLast?_map, Option.mem_def, Option.map_eq_some_iff,
+        Prod.exists, exists_eq_right, List.head?_cons, Option.some.injEq, forall_eq',
+        forall_exists_index, true_and]
+      intros d_last x y h_last
+      have h_in : (x, y, d_last) ∈ moves_rem.snd.fst := by
+        rw [List.getLast?_eq_some_iff] at h_last
+        obtain ⟨ys, h_eq⟩ := h_last
+        rw [h_eq]
+        exact List.mem_append_right _ (List.mem_singleton_self _)
+      have := dist_bounds x y d_last h_in
+      exact this.2
 
   case visited_complete_move.loop_pos =>
-    -- Goal: VisitedComplete ((nx,ny) :: visited) (sx, sy) d
-    -- Previous proof:
-    -- intros x y k h_path h_le
-    -- have h_in_old := visited_complete_move x y k h_path h_le
-    -- simp [List.mem_cons]
-    -- right
-    -- exact h_in_old
-    sorry
+    rw [VisitedComplete]
+    intros x y k h_path h_le
+    simp only [List.mem_cons]
+    right
+    exact visited_complete_move x y k h_path h_le
 
   case valid_moves.loop_pos =>
-    -- Goal: (dx, dy) ∈ knightMoves
-    -- Previous proof:
-    -- apply valid_moves
-    -- cases moves_rem with
-    -- | nil => simp at if_pos
-    -- | cons head tail => simp only [List.tail!_cons] at a_2; aesop
-    sorry
+    apply valid_moves
+    cases h_rem : moves_rem with
+    | nil => simp [h_rem] at if_pos_1
+    | cons hd tl =>
+      simp only [h_rem, List.tail!_cons] at h
+      exact List.mem_cons_of_mem _ h
 
   case closed_move.loop_pos =>
-    -- Goal: ClosedMove property for (x,y) ∈ (new_node :: visited)
-    -- Previous proof:
-    -- simp at a_2 ⊢
-    -- cases a_2 with
-    -- | inl h_new =>
-    --   left
-    --   use i_2 + 1
-    --   grind
-    -- | inr h_old =>
-    --   rcases closed_move x y h_old with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
-    --   · left; rcases h_in_q with ⟨d, h_in⟩; use d; simp [h_in]
-    --   · right; left
-    --     constructor
-    --     · aesop
-    --     · intros nx ny h_move h_not_in_tail
-    --       by_cases h_current : (nx - x, ny - y) = (i_4, i_5)
-    --       · simp only [Std.DHashMap.Internal.AssocList.panicWithPosWithDecl_eq] at i_6
-    --         have : nx = i + i_4 ∧ ny = i_1 + i_5 := by aesop
-    --         rw [this.1, this.2]
-    --         left; grind
-    --       · right
-    --         apply h_neighbors nx ny h_move
-    --         cases h_rem : moves_rem with
-    --         | nil => simp [h_rem] at if_pos
-    --         | cons h t =>
-    --           simp [h_rem] at i_6
-    --           rw [List.mem_cons]
-    --           push_neg
-    --           constructor
-    --           · grind
-    --           · contrapose! h_not_in_tail; rw [h_rem, List.tail!_cons]; exact h_not_in_tail
-    --   · right; right; constructor; · aesop; · intros nx ny h_move; right; exact h_neighbors nx ny h_move
-    sorry
+    simp only [List.mem_cons] at h
+    cases h with
+    | inl h_new =>
+      -- (x, y) is the new node (i_1 + i_4, i_2 + i)
+      left
+      use i_3 + 1
+      simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+      right
+      simp only [Prod.mk.injEq, and_true] at h_new ⊢
+      exact ⟨h_new.1, h_new.2⟩
+    | inr h_old =>
+      -- (x, y) is in old visited
+      rcases closed_move x y h_old with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
+      · -- Was in queue → still in queue (append preserves membership)
+        left
+        rcases h_in_q with ⟨d, h_in⟩
+        use d
+        simp only [List.mem_append]
+        left; exact h_in
+      · -- Is the current node (i_1, i_2)
+        right; left
+        constructor
+        · exact h_eq
+        · intros nx ny h_move h_not_in_tail
+          simp only [List.mem_cons]
+          by_cases h_current : (nx - x, ny - y) = (i_4, i)
+          · -- This is the current move → neighbor is the new node
+            left
+            simp only [Prod.mk.injEq] at h_eq h_current ⊢
+            constructor <;> omega
+          · -- Previously processed move → in old visited
+            right
+            apply h_neighbors nx ny h_move
+            cases h_rem : moves_rem with
+            | nil => simp [h_rem] at if_pos_1
+            | cons hd tl =>
+              simp only [h_rem] at h_4
+              rw [List.mem_cons]
+              push_neg
+              constructor
+              · intro h_eq_move; rw [h_4] at h_eq_move; exact h_current h_eq_move
+              · intro h_in_tl; apply h_not_in_tail; rw [h_rem, List.tail!_cons]; exact h_in_tl
+      · -- Different fully processed node
+        right; right
+        constructor
+        · exact h_neq
+        · intros nx ny h_move
+          simp only [List.mem_cons]
+          right
+          exact h_neighbors nx ny h_move
+
 
   case valid_moves.loop_neg =>
-    -- Goal: (dx, dy) ∈ knightMoves
-    -- Previous proof:
-    -- apply valid_moves
-    -- cases moves_rem with
-    -- | nil => simp at if_pos
-    -- | cons head tail => simp only [List.tail!_cons] at a_2; aesop
-    sorry
+    cases moves_rem with
+    | nil => simp at if_pos
+    | cons head tail => aesop
 
   case closed_move.loop_neg =>
     -- Goal: ClosedMove property (no changes to queue/visited)
     -- Previous proof:
-    -- simp at a_2 ⊢
-    -- rcases closed_move x y a_2 with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
-    -- · left; exact h_in_q
-    -- · right; left
-    --   constructor
-    --   · aesop
-    --   · intros nx ny h_move h_not_in_tail
-    --     by_cases h_current : (nx - x, ny - y) = (i_4, i_5)
-    --     · simp only [List.contains_eq_mem, decide_eq_true_eq, Decidable.not_not] at if_neg_1
-    --       convert if_neg_1 <;> aesop
-    --     · apply h_neighbors nx ny h_move
-    --       cases h_rem : moves_rem with
-    --       | nil => simp [h_rem] at if_pos
-    --       | cons h t =>
-    --         simp [h_rem] at i_6
-    --         rw [List.mem_cons]
-    --         push_neg
-    --         constructor
-    --         · grind
-    --         · contrapose! h_not_in_tail; rw [h_rem, List.tail!_cons]; exact h_not_in_tail
-    -- · right; right; aesop
-    sorry
-
-  -- ============================================================
-  -- INNER LOOP EXIT (moves_rem empty, if_neg: ¬(cx = tx ∧ cy = ty))
-  -- ============================================================
+    rcases closed_move x y h with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
+    · -- Was in queue → still in queue (queue unchanged)
+      left; exact h_in_q
+    · -- Is the current node (i_1, i_2)
+      right; left
+      constructor
+      · exact h_eq
+      · intros nx ny h_move h_not_in_tail
+        by_cases h_current : (nx - x, ny - y) = (i_4, i)
+        · -- This is the current move → neighbor is already in visited (that's why if_neg)
+          simp only [Decidable.not_not, List.contains_eq_mem, decide_eq_true_eq] at if_neg
+          simp only [Prod.mk.injEq] at h_eq h_current
+          convert if_neg using 1
+          simp only [Prod.mk.injEq]
+          rw [h_eq.1, h_eq.2, ← h_current.1, ← h_current.2]
+          simp only [add_sub_cancel, and_self]
+        · -- Previously processed move → was already in visited
+          apply h_neighbors nx ny h_move
+          cases h_rem : moves_rem with
+          | nil => simp [h_rem] at if_pos
+          | cons hd tl =>
+            simp only [h_rem] at h_4
+            rw [List.mem_cons]
+            push_neg
+            constructor
+            · intro h_eq_move; rw [h_4] at h_eq_move; exact h_current h_eq_move
+            · intro h_in_tl; apply h_not_in_tail; rw [h_rem, List.tail!_cons]; exact h_in_tl
+    · -- Different fully processed node
+      right
+      right
+      exact ⟨h_neq, h_neighbors⟩
 
   case all_valid_move.exit =>
-    -- Goal: AllValidPaths queue.tail! (sx, sy)
-    -- Previous proof:
-    -- intros x y d h_in
-    -- apply all_valid
-    -- cases queue <;> simp_all [List.mem_cons]
-    sorry
+    intros x y d h_in
+    apply all_valid
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons hd tl => simp [h_q] at h_in ⊢; aesop
 
   case queue_shortest_move.exit =>
-    -- Goal: QueueShortest queue.tail! (sx, sy)
-    -- Previous proof:
-    -- simp only [Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq,
-    --   Option.isNone_iff_eq_none, Std.DHashMap.Internal.AssocList.panicWithPosWithDecl_eq,
-    --   not_and] at *
-    -- intros x y d h_in d' h_path
-    -- have h_in_parent : (x, y, d) ∈ queue := by aesop
-    -- exact queue_shortest x y d h_in_parent d' h_path
-    sorry
+    simp only [Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq,
+      Option.isNone_iff_eq_none, Std.DHashMap.Internal.AssocList.panicWithPosWithDecl_eq,
+      not_and] at *
+    intros x y d h_in d' h_path
+    have h_in_parent : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    exact queue_shortest x y d h_in_parent d' h_path
 
   case sorted_move.exit =>
-    -- Goal: IsSorted queue.tail!
-    -- Previous proof:
-    -- rw [IsSorted, List.chain'_iff_pairwise]
-    -- cases h_q : queue with
-    -- | nil => simp [h_q] at a
-    -- | cons head tail =>
-    --   rw [h_q, IsSorted] at sorted
-    --   simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
-    --   exact sorted.2
-    sorry
+    rw [IsSorted, List.chain'_iff_pairwise]
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons hd tl =>
+      rw [h_q, IsSorted] at sorted
+      simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
+      exact sorted.2
 
   case visited_complete_move.exit =>
-    -- Goal: VisitedComplete visited (sx, sy) d
-    -- Previous proof: aesop
-    sorry
+    aesop
 
   case valid_current.exit =>
-    -- Goal: ValidPath (sx, sy) (cx, cy) d
-    -- Previous proof:
-    -- apply all_valid
-    -- cases queue <;> simp_all [List.mem_cons]
-    sorry
+    apply all_valid
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons hd tl => aesop
 
   case dist_bounds.exit.left =>
     -- Goal: d ≤ k (where d is head distance, k is element distance)
     -- Previous proof:
-    -- cases h_q : queue with
-    -- | nil => aesop
-    -- | cons head tail =>
-    --   simp [h_q] at i_3
-    --   simp [h_q] at a_2
-    --   rw [h_q, IsSorted] at sorted
-    --   simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons,
-    --     List.mem_map, Prod.exists, exists_eq_right, forall_exists_index, i_3] at sorted
-    --   exact sorted.1 k x y a_2
-    sorry
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons hd tl =>
+      simp only [h_q, List.tail!_cons] at h
+      simp only [h_q] at h_3
+      rw [h_q, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
+      have h_hd : hd = (i_1, i_2, i) := h_3
+      rw [h_hd] at sorted
+      apply sorted.1 k
+      simp only [List.mem_map, Prod.exists, exists_eq_right]
+      exact ⟨x, y, h⟩
 
   case dist_bounds.exit.right =>
-    -- Goal: k ≤ d + 1
-    -- Previous proof:
-    -- cases h_q : queue with
-    -- | nil => aesop
-    -- | cons head tail =>
-    --   simp [h_q] at i_3
-    --   simp [h_q] at a_2
-    --   apply queue_bound x y k
-    --   · rw [h_q]; simp [List.mem_cons]; right; exact a_2
-    --   · aesop
-    sorry
+    cases h_q : found_dist.snd.fst with
+    | nil => simp [h_q] at h_1
+    | cons hd tl =>
+      simp only [h_q, List.tail!_cons] at h
+      have h_in_queue : (x, y, k) ∈ found_dist.snd.fst := by
+        rw [h_q]; exact List.mem_cons_of_mem _ h
+      simp only [h_q] at h_3
+      apply queue_bound x y k h_in_queue i_1 i_2 i
+      rw [h_q, h_3, List.head?_cons]
+
 
   case closed_move.exit =>
-    -- Goal: ClosedSet for queue.tail!
-    -- Previous proof:
-    -- simp at a_2 ⊢
-    -- have h_closed_old := closed a_1 x y a_2
-    -- rcases h_closed_old with ⟨d, h_in_q⟩ | h_neighbors
-    -- · cases h_q : queue with
-    --   | nil => simp [h_q] at a
-    --   | cons head tail =>
-    --     rw [h_q] at h_in_q
-    --     simp at h_in_q
-    --     cases h_in_q with
-    --     | inl h_head => simp only [h_q] at i_3; simp only [List.tail!_cons]; grind
-    --     | inr h_tail => aesop
-    -- · grind
-    sorry
+    have h_closed := closed h_2 x y h
+    rcases h_closed with ⟨d, h_in_q⟩ | h_neighbors
+    · -- Case A: (x, y) was in queue
+      cases h_q : found_dist.snd.fst with
+      | nil => simp [h_q] at h_1
+      | cons hd tl =>
+        rw [h_q] at h_in_q
+        simp only [List.mem_cons] at h_in_q
+        cases h_in_q with
+        | inl h_head =>
+          -- Sub-case A1: (x,y) was the head → middle disjunct
+          right; left
+          simp only [h_q] at h_3
+          simp only [Prod.eq_iff_fst_eq_snd_eq] at h_3 h_head ⊢
+          constructor
+          · aesop
+          · intros nx ny h_move h_not_in; exact absurd h_move h_not_in
+        | inr h_tail =>
+          -- Sub-case A2: (x,y) was in tail → first disjunct
+          left
+          simp only [List.tail!_cons]
+          exact ⟨d, h_tail⟩
+    · -- Case B: All neighbors of (x,y) are in visited
+      by_cases h_eq : (i_1, i_2) = (x, y)
+      · -- Sub-case B1: (x,y) is the head → middle disjunct (vacuously true)
+        right; left
+        constructor
+        · exact h_eq
+        · intros nx ny h_move h_not_in; exact absurd h_move h_not_in
+      · -- Sub-case B2: (x,y) ≠ head → third disjunct
+        right; right
+        exact ⟨h_eq, h_neighbors⟩
 
   case visited_complete.entry =>
     -- Goal: VisitedCompleteQueue visited (sx, sy) queue
     -- This is the complex proof with ClosedSet reasoning
     -- Previous proof: (very long - see visited_complete.exit in Previous)
-    -- simp [VisitedCompleteQueue]
-    -- split
-    -- · trivial
-    -- · rename_i hx hy hd tail
-    --   have h_v : visited_1 = visited_2 := by simp at i_6 <;> aesop
-    --   have h_closed : ClosedSet visited_1 queue_1 := by ...
-    --   have h_hd_bounds : i_2 ≤ hd ∧ hd ≤ i_2 + 1 := by ...
-    --   intros x y k h_path h_le
-    --   ... (complex case analysis on ValidPath)
-    sorry
+    simp [VisitedCompleteQueue]
+    split
+    · trivial
+    · -- Get visited = moves_rem.snd.snd
+      rename_i a b d q fst
+      have h_visited : visited = moves_rem.snd.snd := by simp [h_4.2]
+      have h_queue_eq : moves_rem.snd.fst = (b, d, q) :: fst := by simp [h_4.2]
+
+      -- Get bounds on q
+      have h_q_bounds : i_3 ≤ q ∧ q ≤ i_3 + 1 := by
+        apply dist_bounds b d q
+        rw [h_queue_eq]
+        apply List.mem_cons_self
+
+      rw [VisitedComplete]
+      intros x y k h_path h_le
+
+      -- Case 1: k ≤ i_3
+      by_cases h_k : k ≤ i_3
+      · rw [h_visited]
+        exact visited_complete_move x y k h_path h_k
+      · -- Case 2: k > i_3, so k = i_3 + 1 (since k ≤ q ≤ i_3 + 1)
+        have h_k_eq : k = i_3 + 1 := by omega
+        -- moves_rem is empty
+        have h_empty : moves_rem = [] := by
+          simp only [Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq,
+            not_not] at done_1
+          cases moves_rem with
+          | nil => rfl
+          | cons hd tl => simp at done_1
+        -- Establish ClosedSet
+        have h_closed : ClosedSet moves_rem.snd.snd moves_rem.snd.fst := by
+          rw [ClosedSet]
+          intros x y h_in
+          rcases closed_move x y h_in with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
+          · left; exact h_in_q
+          · right; intros nx ny h_move
+            apply h_neighbors nx ny h_move
+            rw [h_empty]; simp
+          · right; exact h_neighbors
+        -- Use ClosedSet reasoning for paths of length i_3 + 1
+        rw [h_k_eq] at h_path
+        obtain ⟨p1, h_path_prev, h_move⟩ : ∃ p1, ValidPath (sx, sy) p1 i_3 ∧ (x - p1.1, y - p1.2) ∈ knightMoves := by
+          cases h_path with
+          | step h_prev h_mv => exact ⟨_, h_prev, h_mv⟩
+        have h_p1_visited : p1 ∈ moves_rem.snd.snd := visited_complete_move p1.1 p1.2 i_3 h_path_prev (Nat.le_refl _)
+        have h_p1_closed := h_closed p1.1 p1.2 h_p1_visited
+        rcases h_p1_closed with ⟨d', h_in_q⟩ | h_neighbors
+        · have h_d_ge : i_3 ≤ d' := (dist_bounds p1.1 p1.2 d' h_in_q).1
+          have h_shortest := queue_shortest_move p1.1 p1.2 d' h_in_q i_3 h_path_prev
+          have h_d_eq : d' = i_3 := by omega
+          rw [h_queue_eq, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted_move
+          have h_q_le_d' : q ≤ d' := by
+            by_cases h_q : q = i_3
+            · omega
+            · -- q ≠ i_3, so q = i_3 + 1 (from h_q_bounds)
+              have h_q_eq : q = i_3 + 1 := by omega
+              -- But (p1.1, p1.2, d') ∈ queue with d' = i_3
+              -- Head has distance q = i_3 + 1 > i_3 = d'
+              -- This contradicts sorted: head should be ≤ all elements
+              rw [h_queue_eq] at h_in_q
+              simp only [List.mem_cons] at h_in_q
+              cases h_in_q with
+              | inl h_head =>
+                -- (p1.1, p1.2, d') is the head (b, d, q)
+                simp only [Prod.mk.injEq] at h_head
+                omega  -- d' = q but d' = i_3 and q = i_3 + 1
+              | inr h_tail =>
+                -- (p1.1, p1.2, d') is in tail with d' = i_3 < i_3 + 1 = q
+                -- But sorted says head ≤ all tail elements: q ≤ d'
+                have h_sorted := sorted_move.1 d' (by simp [List.mem_map]; exact ⟨p1.1, p1.2, h_tail⟩)
+                omega  -- q ≤ d' but q = i_3 + 1 and d' = i_3
+          omega
+        · rw [h_visited]
+          exact h_neighbors x y h_move
 
   case closed.entry =>
-    -- Goal: ClosedSet visited queue
-    -- Previous proof:
-    -- rw [ClosedSet]
-    -- intros x y h_in
-    -- simp only [MProdWithNames.mk.injEq] at i_6
-    -- rw [← i_6.2.2, ← i_6.2.1]
-    -- rw [← i_6.2.2] at h_in
-    -- have := closed_move x y h_in
-    -- rcases this with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
-    -- · left; exact h_in_q
-    -- · right
-    --   intros nx ny h_move
-    --   apply h_neighbors nx ny h_move
-    --   simp only [Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq, not_not] at done_2
-    --   rw [done_2]
-    --   aesop
-    -- · right; exact h_neighbors
-    sorry
+    rw [ClosedSet]
+    intros x y h_in
+    -- Get that visited = moves_rem.snd.snd and i = moves_rem.snd.fst
+    have h_visited : visited = moves_rem.snd.snd := by simp [h_4.2]
+    have h_queue : i = moves_rem.snd.fst := by simp [h_4.2]
+    rw [h_visited] at h_in
+    rw [h_queue]
+    -- moves_rem is empty
+    have h_empty : moves_rem = [] := by
+      simp only [Bool.not_eq_eq_eq_not, Bool.not_true, List.isEmpty_eq_false_iff, ne_eq,
+        not_not] at done_1
+      cases moves_rem with
+      | nil => rfl
+      | cons hd tl => simp at done_1
+    rcases closed_move x y h_in with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
+    · -- Was in queue
+      left; exact h_in_q
+    · -- Is current node - all neighbors are in visited since moves_rem is empty
+      right
+      intros nx ny h_move
+      rw [h_visited]
+      apply h_neighbors nx ny h_move
+      rw [h_empty]
+      simp
+    · -- Different fully processed node
+      right
+      convert h_neighbors
+
+
 
   case queue_bound.entry =>
-    -- Goal: k ≤ hd + 1 (for outer loop continuation)
-    -- Previous proof:
-    -- simp at i_6
-    -- rw [← i_6.2.1] at a_2 a_3
-    -- have h_in : (x, y, k) ∈ queue_1 := a_2
-    -- have h_head : queue_1.head? = some (hx, hy, hd) := a_3
-    -- have h_k_bound : k ≤ i_2 + 1 := (dist_bounds x y k h_in).2
-    -- have h_head_in : (hx, hy, hd) ∈ queue_1 := by
-    --   cases h_q : queue_1 with
-    --   | nil => simp [h_q] at h_head
-    --   | cons h t =>
-    --     rw [h_q] at h_head
-    --     simp at h_head
-    --     rw [← h_head]
-    --     apply List.mem_cons_self
-    -- have h_hd_bound : i_2 ≤ hd := (dist_bounds hx hy hd h_head_in).1
-    -- grind
-    sorry
+    -- Get that i = moves_rem.snd.fst
+    have h_queue : i = moves_rem.snd.fst := by simp [h_4.2]
+    -- k ≤ i_3 + 1 from dist_bounds
+    have h_k_bound : k ≤ i_3 + 1 := by
+      rw [h_queue] at h_5
+      exact (dist_bounds x y k h_5).2
+    -- (hx, hy, hd) is in the queue (it's the head)
+    have h_head_in : (hx, hy, hd) ∈ moves_rem.snd.fst := by
+      cases h_q : moves_rem.snd.fst with
+      | nil => simp [h_queue, h_q] at h
+      | cons hd' tl =>
+        rw [h_queue, h_q, List.head?_cons] at h
+        simp at h
+        rw [← h]
+        apply List.mem_cons_self
+    -- i_3 ≤ hd from dist_bounds applied to head
+    have h_hd_bound : i_3 ≤ hd := (dist_bounds hx hy hd h_head_in).1
+    omega
 
   case all_valid.entry =>
-    -- Goal: AllValidPaths [(sx, sy, 0)] (sx, sy)
-    -- Previous proof:
-    -- intros x y d h_in
-    -- simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at h_in
-    -- rw [h_in.1, h_in.2.1, h_in.2.2]
-    -- exact ValidPath.zero
-    sorry
+    intros x y d h_in
+    simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at h_in
+    rw [h_in.1, h_in.2.1, h_in.2.2]
+    exact ValidPath.zero
 
   case queue_shortest.entry =>
-    -- Goal: QueueShortest [(sx, sy, 0)] (sx, sy)
-    -- Previous proof:
-    -- intros x y d h_in d' h_path
-    -- simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at h_in
-    -- rw [h_in.2.2]
-    -- exact Nat.zero_le _
-    sorry
+    intros x y d h_in d' h_path
+    simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at h_in
+    rw [h_in.2.2]
+    exact Nat.zero_le _
 
   case sorted.entry =>
-    -- Goal: IsSorted [(sx, sy, 0)]
-    -- Previous proof:
-    -- rw [IsSorted]
-    -- aesop
-    sorry
+    rw [IsSorted]
+    aesop
 
   case visited_complete.entry =>
-    -- Goal: VisitedCompleteQueue [(sx, sy)] (sx, sy) [(sx, sy, 0)]
-    -- Previous proof:
-    -- rw [VisitedCompleteQueue, VisitedComplete]
-    -- intros x y k h_path h_le
-    -- simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
-    -- replace h_le : k = 0 := by grind
-    -- rw [h_le] at h_path
-    -- cases h_path
-    -- aesop
-    sorry
+    rw [VisitedCompleteQueue, VisitedComplete]
+    intros x y k h_path h_le
+    simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
+    replace h_le : k = 0 := by grind
+    rw [h_le] at h_path
+    cases h_path
+    aesop
 
   case closed.entry =>
-    -- Goal: ClosedSet [(sx, sy)] [(sx, sy, 0)]
-    -- Previous proof:
-    -- rw [ClosedSet]
-    -- aesop
-    sorry
+    rw [ClosedSet]
+    aesop
 
 
 #print axioms min_knight_moves_correct
