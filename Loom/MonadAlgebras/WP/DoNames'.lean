@@ -34,6 +34,14 @@ abbrev WithName.erase {α : Type u} {name} (a : WithName α name) : α := a
 
 abbrev typeWithName.erase {α} {name} (a: typeWithName α name): α := a
 
+/-- Forall introduction for MProdWithNames - allows rewriting
+    `∀ x : MProdWithNames α β name, P x` to `∀ a b, P ⟨a, b⟩` -/
+theorem MProdWithNames.forall_intro {α β : Type u} {αName : Lean.Name} {P : MProdWithNames α β αName → Prop} :
+  (∀ x : MProdWithNames α β αName, P x) ↔ (∀ a b, P ⟨a, b⟩) := by
+  constructor
+  · intro h a b; exact h ⟨a, b⟩
+  · intro h ⟨a, b⟩; exact h a b
+
 -- HACK: avoid code explosion until heuristics are improved
 set_option compiler.reuse false
 

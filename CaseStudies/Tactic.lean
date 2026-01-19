@@ -157,6 +157,71 @@ private def extractNameFromMProdWithNames (e : Expr) : MetaM Name := do
   else
     return Name.anonymous
 
+/-- Helper to check if expression is an application of a given short name (handles namespaces) -/
+private def isAppOfShortName (e : Expr) (shortName : String) : Bool :=
+  let matchesShortName (name : Name) : Bool :=
+    let s := name.toString
+    s == shortName || s.endsWith ("." ++ shortName)
+  if e.isApp then
+    e.getAppFn.constName?.any matchesShortName
+  else if e.isConst then
+    matchesShortName e.constName!
+  else
+    false
+/-- Recursively extract ALL names from nested MProdWithNames and WithName types.
+    Used for full destructuring of state tuples.
+    Note: The returned names are "base" names - collision handling with existing hypotheses
+    is done by getUnusedUserName when these names are actually used in loom_prod_split. -/
+private partial def getAllNamesFromMProdWithNamesAndWithName (e : Expr)
+    (lastNamedField : Name := `state) (usedSuffixes : Std.HashMap String Nat := {})
+    : MetaM (List Name × Std.HashMap String Nat) := do
+  let e := e.consumeMData
+
+  -- Handle MProdWithNames
+  if isAppOfShortName e "MProdWithNames" then
+    let args := e.getAppArgs
+    if args.size < 3 then return ([], usedSuffixes)
+    -- Extract fst name (args[2])
+    let fstName ← match extractLoomName args[2]! with
+      | some (.str _ s) => pure (Name.mkSimple s)
+      | some n => pure n
+      | none => pure `_fst
+    -- Recurse into snd type (args[1])
+    let (sndNames, updatedSuffixes) ← getAllNamesFromMProdWithNamesAndWithName args[1]! fstName usedSuffixes
+    match sndNames with
+    | [] =>
+      -- Fallback for unnamed snd: use fstName_N where N avoids collisions
+      let baseStr := fstName.toString
+      let currentSuffix := updatedSuffixes.getD baseStr 1
+      let sndFallback := Name.mkSimple s!"{baseStr}_{currentSuffix}"
+      let newSuffixes := updatedSuffixes.insert baseStr (currentSuffix + 1)
+      return ([fstName, sndFallback], newSuffixes)
+    | _ => return (fstName :: sndNames, updatedSuffixes)
+
+  -- Handle WithName
+  else if isAppOfShortName e "WithName" then
+    let args := e.getAppArgs
+    if args.size >= 2 then
+      match extractLoomName args[1]! with
+      | some (.str _ s) => return ([Name.mkSimple s], usedSuffixes)
+      | some n => return ([n], usedSuffixes)
+      | none =>
+        -- Fallback: use lastNamedField_N where N avoids collisions
+        let baseStr := lastNamedField.toString
+        let currentSuffix := usedSuffixes.getD baseStr 1
+        let fallbackName := Name.mkSimple s!"{baseStr}_{currentSuffix}"
+        let newSuffixes := usedSuffixes.insert baseStr (currentSuffix + 1)
+        return ([fallbackName], newSuffixes)
+    else
+      let baseStr := lastNamedField.toString
+      let currentSuffix := usedSuffixes.getD baseStr 1
+      let fallbackName := Name.mkSimple s!"{baseStr}_{currentSuffix}"
+      let newSuffixes := usedSuffixes.insert baseStr (currentSuffix + 1)
+      return ([fallbackName], newSuffixes)
+
+  else
+    return ([], usedSuffixes)
+
 /-- Known clause type prefixes that can appear in hypothesis names -/
 private def clausePrefixes : List String := ["inv.", "done.", "assert.", "dec.", "req.", "ens.", "choice."]
 
@@ -230,18 +295,6 @@ private def processGoalNameWithDedup (n : Name) (ps : PhaseState) : StateT Split
   else
     -- For non-invariants, just get unique base name
     getUniqueBaseName stripped
-
-/-- Helper to check if expression is an application of a given short name (handles namespaces) -/
-private def isAppOfShortName (e : Expr) (shortName : String) : Bool :=
-  let matchesShortName (name : Name) : Bool :=
-    let s := name.toString
-    s == shortName || s.endsWith ("." ++ shortName)
-  if e.isApp then
-    e.getAppFn.constName?.any matchesShortName
-  else if e.isConst then
-    matchesShortName e.constName!
-  else
-    false
 
 /-- Classification of goal structure for traversal -/
 private inductive GoalKind where
@@ -335,7 +388,9 @@ private partial def traverseAndSplitWithState (ps : PhaseState) (pendingLoopCond
     evalTactic $ ← `(tactic| intro $tempIdent:ident)
     if varName != Name.anonymous then
       let fstName ← getUnusedUserName varName
-      let sndName ← getUnusedUserName (Name.mkStr varName "snd")
+      -- Use underscore separator instead of dot to avoid creating hierarchical names
+      let sndBaseName := Name.mkSimple s!"{varName}_snd"
+      let sndName ← getUnusedUserName sndBaseName
       let fstIdent := mkIdent fstName
       let sndIdent := mkIdent sndName
       evalTactic $ ← `(tactic| obtain ⟨$fstIdent:ident, $sndIdent:ident⟩ := $tempIdent:ident)
@@ -413,6 +468,69 @@ elab_rules : tactic
   | `(tactic| loom_named_split) => withMainContext do
     traverseAndSplit .entry
 
+/-- Post-process hypotheses with MProdWithNames types by fully destructuring them.
+    This handles nested MProdWithNames and WithName types that weren't fully destructured
+    during the main traversal. This is sound albeit hacky and ideally should be implemented within the traversal itself.
+    Uses revert + simp[forall_intro] + intro approach:
+    1. Revert the hypothesis (moves it to the goal as ∀)
+    2. Simp with MProdWithNames.forall_intro (unfolds ∀ x : MProd, P x → ∀ a b, P ⟨a,b⟩)
+    3. Intro with the extracted names
+    This avoids obtain/cases which would add .mk suffix to goal names. -/
+syntax "loom_prod_split" : tactic
+
+elab_rules : tactic
+  | `(tactic| loom_prod_split) => withMainContext do
+    let lctx ← getLCtx
+    let mut hypsToProcess : Array (LocalDecl × List Name) := #[]
+
+    -- First pass: collect hypotheses to process
+    for ldecl in lctx do
+      if ldecl.isImplementationDetail then continue
+      let ty ← instantiateMVars ldecl.type
+      let ty := ty.consumeMData
+      if isAppOfShortName ty "MProdWithNames" then
+        let (allNames, _) ← getAllNamesFromMProdWithNamesAndWithName ty
+        if allNames.length > 1 then
+          hypsToProcess := hypsToProcess.push (ldecl, allNames)
+
+    -- Second pass: process each hypothesis using revert + simp + intro
+    for (ldecl, allNames) in hypsToProcess do
+      -- Use withMainContext to refresh the context and see newly introduced hypotheses
+      -- This ensures getUnusedUserName properly avoids collisions with names from previous iterations
+      withMainContext do
+        let freshNames ← allNames.mapM getUnusedUserName
+        let nameIdents := freshNames.map Lean.mkIdent |>.toArray
+
+        try
+          -- Step 1: Revert the hypothesis (moves it to the goal as a forall)
+          -- This also reverts any hypotheses that depend on it
+          let goal ← getMainGoal
+          let (revertedFVars, newGoal) ← goal.revert #[ldecl.fvarId]
+          let numReverted := revertedFVars.size
+          setGoals [newGoal]
+
+          -- Step 2: Simp with forall_intro to unfold ∀ x : MProdWithNames, P x → ∀ a b, P ⟨a,b⟩
+          -- Only apply to the goal (not at *) to avoid affecting other hypotheses
+          evalTactic (← `(tactic| simp only [MProdWithNames.forall_intro, WithName.erase, WithName.mk']))
+
+          -- Step 3: Intro with the proper names for the MProdWithNames components
+          evalTactic (← `(tactic| intro $[$nameIdents]*))
+
+          -- Step 4: Intro the remaining hypotheses that were reverted along with the main one
+          -- The number of additional intros needed is: numReverted - 1 (we already handled the MProd)
+          let remainingIntros := numReverted - 1
+          if remainingIntros > 0 then
+            -- Use introNP to introduce the remaining hypotheses while preserving their names
+            let goal ← getMainGoal
+            let (_, newGoal) ← goal.introNP remainingIntros
+            setGoals [newGoal]
+        catch _ =>
+          -- If the revert+simp+intro approach fails, skip this hypothesis
+          pure ()
+
+    -- Clean up any remaining types with simp
+    evalTactic (← `(tactic| try simp only [MProdWithNames.fst, MProdWithNames.snd, WithName.mk', WithName.erase] at *))
+
 elab_rules : tactic
   | `(tactic| loom_goals_intro) => withMainContext do
     let vlsIntro <- `(tactic| (
@@ -455,6 +573,7 @@ elab_rules : tactic
     let vlsTryThis <- `(tacticSeq|
         loom_goals_intro
         loom_named_split
+        all_goals loom_prod_split
         all_goals loom_unfold
         all_goals loom_solver)
     if let `(loom_solve_tactic| loom_solve?) := vls then
@@ -462,10 +581,12 @@ elab_rules : tactic
     else
       let vlsIntro ← `(tactic| loom_goals_intro)
       let vlsSplit ← `(tactic| loom_named_split)
+      let vlsDestructure ← `(tactic| all_goals loom_prod_split)
       let vlsUnfold ← `(tactic| all_goals loom_unfold)
       let vlsSolve ← `(tactic| all_goals loom_solver)
       evalTactic vlsIntro
       evalTactic vlsSplit
+      evalTactic vlsDestructure
       evalTactic vlsUnfold
       -- Only collect goal info for loom_solve! (error reporting)
       let isStrict := match vls with

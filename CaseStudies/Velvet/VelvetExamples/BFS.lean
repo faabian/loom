@@ -9,6 +9,7 @@ import CaseStudies.TestingUtil
 
 set_option loom.semantics.termination "partial"
 set_option loom.semantics.choice "demonic"
+set_option loom.solver.grind.splits 5
 set_option maxHeartbeats 0
 
 -- Definitions for the problem domain
@@ -106,25 +107,29 @@ method min_knight_moves (sx : Int) (sy : Int) (tx : Int) (ty : Int) return (dist
     return found_dist
 
 prove_correct min_knight_moves by
-  loom_solve
+  loom_goals_intro
+  loom_named_split
+  all_goals loom_prod_split
+  all_goals loom_unfold
+  all_goals try grind
   -- 29 goals remaining after loom_solve
   -- Naming scheme: .entry (outer loop), .loop_pos (inner if true), .loop_neg (inner if false), .exit (loop exit)
 
   case queue_shortest.entry =>
     simp at *
     intros x y d h_in d' h_path
-    replace h_in : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    replace h_in : (x, y, d) ∈ queue := by aesop
     exact queue_shortest x y d h_in d' h_path
 
   case all_valid.entry =>
     simp at *
     intros x y d h_in
-    replace h_in : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    replace h_in : (x, y, d) ∈ queue := by aesop
     exact all_valid x y d h_in
 
   case sorted.entry =>
     rw [IsSorted]
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => aesop
     | cons hd tl =>
       simp only [h_q, IsSorted, List.map_cons] at sorted
@@ -132,8 +137,8 @@ prove_correct min_knight_moves by
 
   case found_correct.entry =>
     have h_i_eq_d : i = d := Option.some_injective _ h
-    have h_in : (tx, ty, d) ∈ found_dist.snd.fst := by
-      cases h_q : found_dist.snd.fst with
+    have h_in : (tx, ty, d) ∈ queue := by
+      cases h_q : queue with
       | nil => simp [h_q] at h_1
       | cons hd tl =>
         simp [h_q] at h_3
@@ -143,13 +148,13 @@ prove_correct min_knight_moves by
     exact ⟨all_valid tx ty d h_in, queue_shortest tx ty d h_in⟩
 
   case queue_bound.entry =>
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons head tail =>
       -- Simplify h_6 and h using the decomposition
       simp only [h_q, List.tail!_cons] at h_6 h
       -- (x, y, k) is in the full queue
-      have h_in_queue : (x, y, k) ∈ found_dist.snd.fst := by
+      have h_in_queue : (x, y, k) ∈ queue := by
         rw [h_q]; exact List.mem_cons_of_mem _ h_6
       -- Get head = (i_1, i_2, i) from h_3
       simp only [h_q] at h_3
@@ -207,7 +212,7 @@ prove_correct min_knight_moves by
       simp only [Prod.mk.injEq] at h_in
       by_cases h_d' : d' ≤ i_3
       · -- If d' ≤ i_3, node should be in visited, but it's not
-        have h_not_visited : (i_1 + i_4, i_2 + i) ∉ moves_rem.snd.snd := by
+        have h_not_visited : (i_1 + i_4, i_2 + i) ∉ visited_1 := by
           simp only [List.contains_eq_mem, Bool.not_eq_true, decide_eq_false_iff_not] at if_pos
           exact if_pos
         rw [h_in.1, h_in.2.1] at h_path
@@ -226,7 +231,7 @@ prove_correct min_knight_moves by
         Prod.exists, exists_eq_right, List.head?_cons, Option.some.injEq, forall_eq',
         forall_exists_index, true_and]
       intros d_last x y h_last
-      have h_in : (x, y, d_last) ∈ moves_rem.snd.fst := by
+      have h_in : (x, y, d_last) ∈ queue_1 := by
         rw [List.getLast?_eq_some_iff] at h_last
         obtain ⟨ys, h_eq⟩ := h_last
         rw [h_eq]
@@ -345,7 +350,7 @@ prove_correct min_knight_moves by
   case all_valid_move.exit =>
     intros x y d h_in
     apply all_valid
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl => simp [h_q] at h_in ⊢; aesop
 
@@ -354,12 +359,12 @@ prove_correct min_knight_moves by
       Option.isNone_iff_eq_none, Std.DHashMap.Internal.AssocList.panicWithPosWithDecl_eq,
       not_and] at *
     intros x y d h_in d' h_path
-    have h_in_parent : (x, y, d) ∈ found_dist.snd.fst := by aesop
+    have h_in_parent : (x, y, d) ∈ queue := by aesop
     exact queue_shortest x y d h_in_parent d' h_path
 
   case sorted_move.exit =>
     rw [IsSorted, List.chain'_iff_pairwise]
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl =>
       rw [h_q, IsSorted] at sorted
@@ -371,14 +376,14 @@ prove_correct min_knight_moves by
 
   case valid_current.exit =>
     apply all_valid
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl => aesop
 
   case dist_bounds.exit.left =>
     -- Goal: d ≤ k (where d is head distance, k is element distance)
     -- Previous proof:
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl =>
       simp only [h_q, List.tail!_cons] at h
@@ -391,11 +396,11 @@ prove_correct min_knight_moves by
       exact ⟨x, y, h⟩
 
   case dist_bounds.exit.right =>
-    cases h_q : found_dist.snd.fst with
+    cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl =>
       simp only [h_q, List.tail!_cons] at h
-      have h_in_queue : (x, y, k) ∈ found_dist.snd.fst := by
+      have h_in_queue : (x, y, k) ∈ queue := by
         rw [h_q]; exact List.mem_cons_of_mem _ h
       simp only [h_q] at h_3
       apply queue_bound x y k h_in_queue i_1 i_2 i
@@ -406,7 +411,7 @@ prove_correct min_knight_moves by
     have h_closed := closed h_2 x y h
     rcases h_closed with ⟨d, h_in_q⟩ | h_neighbors
     · -- Case A: (x, y) was in queue
-      cases h_q : found_dist.snd.fst with
+      cases h_q : queue with
       | nil => simp [h_q] at h_1
       | cons hd tl =>
         rw [h_q] at h_in_q
@@ -443,10 +448,10 @@ prove_correct min_knight_moves by
     simp [VisitedCompleteQueue]
     split
     · trivial
-    · -- Get visited = moves_rem.snd.snd
-      rename_i a b d q fst
-      have h_visited : visited = moves_rem.snd.snd := by simp [h_4.2]
-      have h_queue_eq : moves_rem.snd.fst = (b, d, q) :: fst := by simp [h_4.2]
+      -- Get visited = visited_2
+    · rename_i a b d q fst
+      have h_visited : visited = visited_2 := by simp [h_4.2]
+      have h_queue_eq : queue_1 = (b, d, q) :: fst := by simp [h_4.2]
 
       -- Get bounds on q
       have h_q_bounds : i_3 ≤ q ∧ q ≤ i_3 + 1 := by
@@ -471,7 +476,7 @@ prove_correct min_knight_moves by
           | nil => rfl
           | cons hd tl => simp at done_1
         -- Establish ClosedSet
-        have h_closed : ClosedSet moves_rem.snd.snd moves_rem.snd.fst := by
+        have h_closed : ClosedSet visited_2 queue_1 := by
           rw [ClosedSet]
           intros x y h_in
           rcases closed_move x y h_in with h_in_q | ⟨h_eq, h_neighbors⟩ | ⟨h_neq, h_neighbors⟩
@@ -485,7 +490,7 @@ prove_correct min_knight_moves by
         obtain ⟨p1, h_path_prev, h_move⟩ : ∃ p1, ValidPath (sx, sy) p1 i_3 ∧ (x - p1.1, y - p1.2) ∈ knightMoves := by
           cases h_path with
           | step h_prev h_mv => exact ⟨_, h_prev, h_mv⟩
-        have h_p1_visited : p1 ∈ moves_rem.snd.snd := visited_complete_move p1.1 p1.2 i_3 h_path_prev (Nat.le_refl _)
+        have h_p1_visited : p1 ∈ visited_2 := visited_complete_move p1.1 p1.2 i_3 h_path_prev (Nat.le_refl _)
         have h_p1_closed := h_closed p1.1 p1.2 h_p1_visited
         rcases h_p1_closed with ⟨d', h_in_q⟩ | h_neighbors
         · have h_d_ge : i_3 ≤ d' := (dist_bounds p1.1 p1.2 d' h_in_q).1
@@ -519,9 +524,9 @@ prove_correct min_knight_moves by
   case closed.entry =>
     rw [ClosedSet]
     intros x y h_in
-    -- Get that visited = moves_rem.snd.snd and i = moves_rem.snd.fst
-    have h_visited : visited = moves_rem.snd.snd := by simp [h_4.2]
-    have h_queue : i = moves_rem.snd.fst := by simp [h_4.2]
+    -- Get that visited = visited_2 and i = queue_1
+    have h_visited : visited = visited_2 := by simp [h_4.2]
+    have h_queue : i = queue_1 := by simp [h_4.2]
     rw [h_visited] at h_in
     rw [h_queue]
     -- moves_rem is empty
@@ -548,15 +553,14 @@ prove_correct min_knight_moves by
 
 
   case queue_bound.entry =>
-    -- Get that i = moves_rem.snd.fst
-    have h_queue : i = moves_rem.snd.fst := by simp [h_4.2]
+    -- Get that i = queue_1
+    have h_queue : i = queue_1 := by simp [h_4.2]
     -- k ≤ i_3 + 1 from dist_bounds
     have h_k_bound : k ≤ i_3 + 1 := by
       rw [h_queue] at h_5
       exact (dist_bounds x y k h_5).2
-    -- (hx, hy, hd) is in the queue (it's the head)
-    have h_head_in : (hx, hy, hd) ∈ moves_rem.snd.fst := by
-      cases h_q : moves_rem.snd.fst with
+    have h_head_in : (hx, hy, hd) ∈ queue_1 := by
+      cases h_q : queue_1 with
       | nil => simp [h_queue, h_q] at h
       | cons hd' tl =>
         rw [h_queue, h_q, List.head?_cons] at h
