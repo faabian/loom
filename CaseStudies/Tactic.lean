@@ -421,6 +421,10 @@ private partial def traverseAndSplitWithState (ps : PhaseState) (pendingLoopCond
     setGoals processedGoals
 
   | .withNameGoal name =>
+    -- Prefer typeWithName inside the goal if present (for decreasing goals with user-provided names)
+    let name ← match goalType.find? (fun e => isAppOfShortName e "typeWithName") with
+      | some e => do let n ← extractNameFromTypeWithName e; if n != Name.anonymous then pure n else pure name
+      | none => pure name
     let uniqueName ← processGoalNameWithDedup name ps
     goal.setTag uniqueName
     evalTactic $ ← `(tactic| unfold WithName)

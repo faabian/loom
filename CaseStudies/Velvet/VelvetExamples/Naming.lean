@@ -250,6 +250,8 @@ method test_named_decreasing (x: ℕ) return (res: ℕ)
 
 prove_correct test_named_decreasing by
     loom_solve
+    case measure =>
+        sorry
     all_goals sorry
 
 /- Test: Full naming in total correctness -/
@@ -265,7 +267,8 @@ method test_full_naming_total (n: ℕ) return (res: ℕ)
     done_with loop_exit: i = 0
     decreasing loop_measure: i
     do
-        assert progress: i > 0
+        assert i > 0
+        let k :| k < i
         i := i - 1
     return i
 
