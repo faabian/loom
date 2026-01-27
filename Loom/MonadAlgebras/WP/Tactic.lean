@@ -1,5 +1,5 @@
 import Lean
-
+import Auto
 import Loom.MonadAlgebras.WP.Attr
 import Loom.MonadAlgebras.WP.DoNames'
 import Loom.MonadAlgebras.WP.Matcher
@@ -65,8 +65,8 @@ elab "wpgen_generate_size_conditions" : tactic => do
       let some larger := larger | continue
       let .fvar larger := larger | continue
       let largerIdent ← Lean.mkIdent <$> larger.getUserName
-      evalTactic (← `(tactic| have : sizeOf $cIdent:ident < sizeOf $largerIdent:ident := by
-        subst $largerIdent ; simp))
+      evalTactic (← `(tactic| have : sizeOf $cIdent:ident < sizeOf $largerIdent:ident := autoSMTSorry _))
+
 
 def generateWPStep : TacticM (Bool × Expr) := withMainContext do
   let goalType <- getMainTarget
