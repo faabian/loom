@@ -49,9 +49,16 @@ instance [Monad m] [CCPOBot m] : CCPOBot (StateT σ m) where
 
 instance [Monad m] [inst : ∀ α, Lean.Order.CCPO (m α)] [CCPOBot m] [CCPOBotLawful m] : CCPOBotLawful (StateT σ m) where
   prop := by
-    simp [Lean.Order.bot, Lean.Order.CCPO.csup, instCCPOStateTOfMonad_loom]
-    unfold Lean.Order.fun_csup; intro α; ext; simp [StateT.run]
-    apply CCPOBotLawful.prop
+    intro α
+    simp only [Lean.Order.bot]
+    rw [← Lean.Order.fun_csup_eq]
+    funext x
+    simp only [Lean.Order.fun_csup, instCCPOBotStateTOfMonad]
+    rw [CCPOBotLawful.prop]
+    simp only [Lean.Order.bot]
+    congr 1
+    ext y
+    simp [Lean.Order.empty_chain]
 
 
 lemma MAlg.lift_StateT [Monad m] [LawfulMonad m] [CompleteLattice l] [inst: MAlgOrdered m l] (x : StateT σ m α) :
@@ -64,24 +71,29 @@ instance [Monad m] [LawfulMonad m] [_root_.CompleteLattice l] [inst: MAlgOrdered
   [MAlgPartial m] : MAlgPartial (StateT σ m) where
   csup_lift {α} chain := by
     intro post hchain
-    simp [instCCPOStateTOfMonad_loom, CCPO.csup, MAlg.lift_StateT]
-    rw [@Pi.le_def]; simp; unfold fun_csup; intro s
+    rw [show CCPO.csup hchain = fun_csup chain hchain from (fun_csup_eq chain hchain).symm]
+    simp only [MAlg.lift_StateT]
+    rw [@Pi.le_def]; intro s; simp only [fun_csup, iInf_apply]
     apply le_trans'
     apply MAlgPartial.csup_lift (m := m)
-    { simp [Lean.Order.chain]; rintro x y f cf rfl g cg rfl
-      cases (hchain f g cf cg)
-      { left; solve_by_elim }
-      right; solve_by_elim }
-    repeat rw [@iInf_subtype']
-    refine iInf_mono' ?_; simp [Membership.mem, Set.Mem]; aesop
+    simp only [le_iInf_iff]
+    intro x ⟨f, hf, hx⟩
+    rw [← hx]
+    exact iInf_le_of_le f (iInf_le_of_le hf (le_refl _))
+
+
 
 attribute [-simp] le_bot_iff in
 instance [Monad m] [LawfulMonad m] [_root_.CompleteLattice l] [inst: MAlgOrdered m l]
   [∀ α, CCPO (m α)]  [MonoBind m]
   [MAlgTotal m] : MAlgTotal (StateT σ m) where
   bot_lift := by
-    simp [MAlg.lift_StateT, bot, instCCPOStateTOfMonad_loom, CCPO.csup, fun_csup]
-    intros; intro; simp;
+    intro α post
+    simp only [MAlg.lift_StateT]
+    rw [@Pi.le_def]; intro s; simp
+    conv_lhs => rw [show (Lean.Order.bot : StateT σ m α) s = Lean.Order.bot from by
+      simp only [Lean.Order.bot]; rw [← Lean.Order.fun_csup_eq]
+      unfold Lean.Order.fun_csup; simp [Lean.Order.empty_chain]]
     apply MAlgTotal.bot_lift (m := m)
 
 instance [Monad m] [LawfulMonad m] [_root_.CompleteLattice l] [inst: MAlgOrdered m l]

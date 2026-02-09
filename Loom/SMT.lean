@@ -146,7 +146,7 @@ def createSolver (name : SmtSolver) (withTimeout : Nat) : MetaM SolverProc := do
       emitCommand proc (.setLogic "ALL")
       pure proc
 
-partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM (SmtResult × SmtSolver):= do
+def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : Option SmtSolver := none) (retryOnUnknown : Bool := false) : MetaM (SmtResult × SmtSolver):= do
   let opts ← getOptions
   let solverName :=
     match forceSolver with
@@ -159,7 +159,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
   emitCommand solver .checkSat
   let stdout ← solver.stdout.getLine
   trace[loom.smt.debug] "[checkSat] stdout: {stdout}"
-  let (checkSatResponse, _) ← Auto.Solver.SMT.getSexp stdout
+  let (checkSatResponse, _) ← Auto.Solver.SMT.getTerm stdout
   match checkSatResponse with
   | .atom (.symb "sat") =>
     trace[loom.smt.result] "{solverName} says Sat"
@@ -169,7 +169,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
     let stderr ← solver.stderr.readToEnd
     trace[loom.smt.debug] "stdout: {stdout}"
     trace[loom.smt.debug] "stderr: {stderr}"
-    let (model, _) ← Auto.Solver.SMT.getSexp stdout
+    let (model, _) ← Auto.Solver.SMT.getTerm stdout
     solver.kill
     return (SmtResult.Sat s!"{model}", solverName)
 
@@ -202,6 +202,7 @@ partial def querySolver (goalQuery : String) (withTimeout : Nat) (forceSolver : 
   catch e =>
     let exMsg ← e.toMessageData.toString
     return (.Failure s!"{exMsg}", solverName)
+termination_by if retryOnUnknown then 1 else 0
 
 -- /-- Our own version of the `auto` tactic. -/
 syntax (name := loom_smt) "loom_smt" Auto.hints : tactic

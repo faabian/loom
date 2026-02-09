@@ -163,6 +163,21 @@ partial def Lean.Expr.getNamesProp (tp : Expr) : MetaM (Option (List Name)) := d
     let nname := typeWithNameExpr.getAppArgs[2]!
     return some [<- nname.getName]
 
+private partial def extractName (e : Expr) : Option Name :=
+  if e.isAppOfArity ``Name.mkStr 2 then
+    let p := e.getAppArgs[0]!
+    let s := e.getAppArgs[1]!
+    match s with
+    | .lit (.strVal s) =>
+      match extractName p with
+      | some pName => some (Name.mkStr pName s)
+      | none => some (Name.mkStr Name.anonymous s)
+    | _ => none
+  else if e.isAppOf ``Name.anonymous then
+    some Name.anonymous
+  else
+    none
+
 def renameOld (n : Name) : TacticM Unit := withMainContext do
   (<- getMainGoal).modifyLCtx fun hyps => Id.run do
     let mut hypsNew := hyps
@@ -179,22 +194,7 @@ elab "loom_split" : tactic => do
     let args := goalType.getAppArgs
     if args.size >= 2 then
       let n := args[1]!
-           let rec extractName (e : Expr) : Option Name := do
-             if e.isAppOfArity ``Name.mkStr 2 then
-               let p := e.getAppArgs[0]!
-               let s := e.getAppArgs[1]!
-               match s with
-               | .lit (.strVal s) =>
-                 match extractName p with
-                 | some pName => some (Name.mkStr pName s)
-                 | none => some (Name.mkStr Name.anonymous s) -- fallback if p is not a name expr
-               | _ => none
-             else if e.isAppOf ``Name.anonymous then
-               some Name.anonymous
-             else
-               none
-
-           let tag_opt := extractName n
+      let tag_opt := extractName n
            if let some tag := tag_opt then
              let goals ← getGoals
              if let g :: gs := goals then
@@ -213,6 +213,7 @@ elab "loom_split" : tactic => do
         g1.setTag tag
         g2.setTag tag
         setGoals (g1 :: g2 :: gs)
+
 
 
 elab "loom_rename" : tactic => do

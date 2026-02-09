@@ -6,7 +6,8 @@ import Loom.MonadAlgebras.WP.Attr
 import Loom.MonadAlgebras.WP.Tactic
 -- import Loom.MonadAlgebras.WP.DoNames'
 import Loom.MonadAlgebras.WP.Gen
-import Loom.Tactic
+-- import Loom.Tactic
+import Loom.TacticAsync
 import Loom.SMT
 
 import CaseStudies.Extension
@@ -63,6 +64,8 @@ def getAssertionStx : TacticM (Option Term) := withMainContext do
 
 declare_syntax_cat loom_solve_tactic
 syntax "loom_solve" : loom_solve_tactic
+syntax "loom_solve_async" (num)? : loom_solve_tactic
+syntax "loom_solve_async!" (num)? : loom_solve_tactic
 syntax "loom_solve?" : loom_solve_tactic
 syntax "loom_solve!" : loom_solve_tactic
 syntax loom_solve_tactic : tactic
@@ -232,7 +235,7 @@ private def isInvariantName (n : Name) : Bool := n.toString.startsWith "inv."
 private def stripClausePrefix (n : Name) : Name :=
   let s := n.toString
   match clausePrefixes.find? (s.startsWith ·) with
-  | some p => Name.mkSimple (s.drop p.length)
+  | some p => Name.mkSimple (s.drop p.length).toString
   | none => n
 
 /-- Analyze clause type for if_pos/if_neg detection, returning (needsPhaseChange, strippedName) -/
@@ -572,56 +575,82 @@ elab_rules : tactic
     let vlsAuto <- `(tactic| try (try simp only [loomAbstractionSimp] at *); loom_smt [$hints,*])
     evalTactic vlsAuto
 
+/-- Core loom_solve implementation: fast, synchronous path -/
 elab_rules : tactic
-  | `(tactic| $vls:loom_solve_tactic) => withMainContext do
+  | `(tactic| loom_solve) => withMainContext do
+    evalTactic (← `(tactic| loom_goals_intro))
+    evalTactic (← `(tactic| loom_named_split))
+    evalTactic (← `(tactic| all_goals loom_prod_split))
+    evalTactic (← `(tactic| all_goals loom_unfold))
+    evalTactic (← `(tactic| all_goals loom_solver))
+
+/-- loom_solve? suggests the tactic sequence -/
+elab_rules : tactic
+  | `(tactic| loom_solve?) => withMainContext do
     let vlsTryThis <- `(tacticSeq|
         loom_goals_intro
         loom_named_split
         all_goals loom_prod_split
         all_goals loom_unfold
         all_goals loom_solver)
-    if let `(loom_solve_tactic| loom_solve?) := vls then
-      Tactic.TryThis.addSuggestion (<-getRef) vlsTryThis
-    else
-      let vlsIntro ← `(tactic| loom_goals_intro)
-      let vlsSplit ← `(tactic| loom_named_split)
-      let vlsDestructure ← `(tactic| all_goals loom_prod_split)
-      let vlsUnfold ← `(tactic| all_goals loom_unfold)
-      let vlsSolve ← `(tactic| all_goals loom_solver)
-      evalTactic vlsIntro
-      evalTactic vlsSplit
-      evalTactic vlsDestructure
-      evalTactic vlsUnfold
-      -- Only collect goal info for loom_solve! (error reporting)
-      let isStrict := match vls with
-        | `(loom_solve_tactic| loom_solve!) => true
-        | _ => false
-      let mut res : List (MVarId × Option Term) := []
-      if isStrict then
-        let ⟨_, _, ns, _⟩ <- loomAssertionsMap.get
-        for mvarId in (← getGoals) do
-          setGoals [mvarId]
-          let stx_res <- try getAssertionStx catch _ => pure none
-          let tag <- mvarId.getTag
-          let isDerived := ns.contains tag || ns.toList.any fun (n, _) =>
-            let s := tag.toString
-            let p := n.toString
-            s.startsWith (p ++ "_") || s.startsWith (p ++ ".")
-          let isEnsures := ns.contains (Name.mkStr (Name.mkSimple "ensures") tag.toString)
-          if stx_res.isSome || isDerived || isEnsures then
-            res := res ++ [(mvarId, stx_res)]
-          else
-            res := res ++ [(mvarId, none)]
-      -- Run solver on all goals
-      evalTactic vlsSolve
-      -- Report errors for loom_solve!
-      if isStrict then
-        let unsolvedGoals ← getGoals
-        for (mvarId, stx_res) in res do
-          if unsolvedGoals.contains mvarId then
-            match stx_res with
-            | some stx => logErrorAt stx $ m!"Failed to prove assertion\n{mvarId}"
-            | none => logError m!"Failed to prove nameless assertion\n{mvarId}"
+    Tactic.TryThis.addSuggestion (<-getRef) vlsTryThis
+
+/-- loom_solve! with error reporting for unsolved goals -/
+elab_rules : tactic
+  | `(tactic| loom_solve!) => withMainContext do
+    evalTactic (← `(tactic| loom_goals_intro))
+    evalTactic (← `(tactic| loom_named_split))
+    evalTactic (← `(tactic| all_goals loom_prod_split))
+    evalTactic (← `(tactic| all_goals loom_unfold))
+    evalTactic (← `(tactic| all_goals try loom_solver))
+    -- Report errors for unsolved goals
+    for mvarId in ← getUnsolvedGoals do
+      setGoals [mvarId]
+      let stx ← getAssertionStx
+      if let some stx := stx then
+        logErrorAt stx m!"Failed to prove assertion\n{mvarId}"
+      else
+        logError m!"Failed to prove nameless assertion\n{mvarId}"
+
+/-- loom_solve_async: parallel solving with sorry placeholders -/
+elab_rules : tactic
+  | `(tactic| loom_solve_async $[$n]?) => withMainContext do
+    evalTactic (← `(tactic| loom_goals_intro))
+    evalTactic (← `(tactic| loom_named_split))
+    evalTactic (← `(tactic| all_goals loom_prod_split))
+    evalTactic (← `(tactic| all_goals loom_unfold))
+    let goals ← getUnsolvedGoals
+    let numTasks := n.map (·.getNat)
+    if let some nt := numTasks then
+      if goals.length < nt then
+        logWarning m!"This method has only {goals.length} Verification Conditions, but `loom_solve_async` is called with {nt} asynchronous tasks"
+    allGoalsAsync (numTasks := numTasks.map (·.min goals.length)) do
+      evalTactic (← `(tactic| try loom_solver))
+    logWarning m!"`loom_solve_async` uses sorry to admit all the solved goals for now, consider running `loom_solve` once proof is complete to get the proof term"
+
+/-- loom_solve_async! with error reporting -/
+elab_rules : tactic
+  | `(tactic| loom_solve_async! $[$n]?) => withMainContext do
+    evalTactic (← `(tactic| loom_goals_intro))
+    evalTactic (← `(tactic| loom_named_split))
+    evalTactic (← `(tactic| all_goals loom_prod_split))
+    evalTactic (← `(tactic| all_goals loom_unfold))
+    let goals ← getUnsolvedGoals
+    let numTasks := n.map (·.getNat)
+    if let some nt := numTasks then
+      if goals.length < nt then
+        logWarning m!"This method has only {goals.length} Verification Conditions, but `loom_solve_async!` is called with {nt} asynchronous tasks"
+    allGoalsAsync (numTasks := numTasks.map (·.min goals.length)) do
+      evalTactic (← `(tactic| try loom_solver))
+    logWarning m!"`loom_solve_async!` uses sorry to admit all the solved goals for now, consider running `loom_solve` once proof is complete to get the proof term"
+    -- Report errors for unsolved goals
+    for mvarId in ← getUnsolvedGoals do
+      setGoals [mvarId]
+      let stx ← getAssertionStx
+      if let some stx := stx then
+        logErrorAt stx m!"Failed to prove assertion\n{mvarId}"
+      else
+        logError m!"Failed to prove nameless assertion\n{mvarId}"
 
 elab "loom_solve?" : tactic => withMainContext do
   let ctx := (<- solverHints.get)

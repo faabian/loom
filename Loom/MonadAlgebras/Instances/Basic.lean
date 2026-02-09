@@ -47,7 +47,12 @@ instance : CCPOBot DivM where
   compBot := .div
 
 instance : CCPOBotLawful DivM where
-  prop := by simp [Lean.Order.bot, Lean.Order.CCPO.csup,Lean.Order.flat_csup, instCCPOBotDivM]
+  prop := by
+    intro α
+    simp only [Lean.Order.bot]
+    rw [← Lean.Order.flat_csup_eq]
+    simp [Lean.Order.flat_csup, instCCPOBotDivM]
+    tauto
 
 instance : Lean.Order.MonoBind DivM where
   bind_mono_left := by
@@ -76,7 +81,8 @@ scoped instance : MAlgDet DivM Prop where
 instance : MAlgPartial DivM where
   csup_lift {α} chain := by
     intro post hchain
-    simp [Lean.Order.CCPO.csup, Lean.Order.flat_csup]
+    rw [show Lean.Order.CCPO.csup hchain = Lean.Order.flat_csup chain from (Lean.Order.flat_csup_eq chain hchain).symm]
+    simp [Lean.Order.flat_csup]
     split_ifs with ch
     { intro h; apply h;
       rcases Classical.choose_spec ch

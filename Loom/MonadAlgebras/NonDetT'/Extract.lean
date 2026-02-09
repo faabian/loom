@@ -403,16 +403,17 @@ lemma ExtractNonDet.extract_refines (pre : l) (s : NonDetT m α) (inst : Extract
   simp; aesop
 
 omit [CCPOBot m] [MAlgDet m l] [LawfulMonad m] in
-lemma wp_csup (xc : Set (m α)) (post : α -> l) [∀ α, CCPO (m α)] [MAlgPartial m]:
-  Lean.Order.chain xc ->
-  ⨅ c ∈ xc, wp c post ≤ wp (Lean.Order.CCPO.csup xc) post := by
+lemma wp_csup (xc : Set (m α)) (post : α -> l) [∀ α, CCPO (m α)] [MAlgPartial m]
+    (hc : Lean.Order.chain xc) :
+    ⨅ c ∈ xc, wp c post ≤ wp (Lean.Order.CCPO.csup hc) post := by
   apply MAlgPartial.csup_lift
 
 omit [CCPOBot m] [MAlgDet m l] [LawfulMonad m] in
 lemma wp_bot [∀ α, CCPO (m α)] [MAlgPartial m]:
   wp (bot : m α) = fun _ => (⊤ : l) := by
   ext post; refine eq_top_iff.mpr ?_
-  apply le_trans'; apply wp_csup; simp [chain]
+  have hchain : Lean.Order.chain (∅ : Set (m α)) := fun _ _ h _ => h.elim
+  apply le_trans'; apply wp_csup ∅ _ hchain
   refine le_iInf₂ ?_
   intro; erw [Set.mem_empty_iff_false]; simp
 

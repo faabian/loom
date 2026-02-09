@@ -55,7 +55,7 @@ lemma wp_mono_part (x : NonDetT DivM α) (post₁ post₂ : α -> Prop) :
 lemma VelvetM.total_decompose {α : Type} (x : VelvetM α) (post₁ post₂ : α -> Prop):
   [totl| wp x post₁] ⊓ [part| wp x post₂] = [totl| wp x (post₁ ⊓ post₂)] := by
     unhygienic induction x <;> try simp [loomLogicSimp]
-    { simp [DivM.total_decompose]
+    { --simp [DivM.total_decompose]
       simp [[totl|DivM.wp_eq]]
       split
       { simp }

@@ -8,11 +8,12 @@ open Plausible
 
 universe u
 
+-- TODO: Fix this instance
 /- Ordered Monad Algebra instance for Gen -/
-instance MAlgGenInst : MAlgOrdered Gen (ULift Nat -> ULift StdGen -> Prop) :=
-  inferInstanceAs
-    (MAlgOrdered
-      (ReaderT (ULift Nat)
-        (StateT (ULift StdGen) Id))
-      (ULift Nat ->
-        ULift StdGen -> Prop))
+-- instance MAlgGenInst : MAlgOrdered Gen (ULift Nat -> ULift StdGen -> Prop) :=
+--   inferInstanceAs
+--     (MAlgOrdered
+--       (ReaderT (ULift Nat)
+--         (StateT (ULift StdGen) Id))
+--       (ULift Nat ->
+--         ULift StdGen -> Prop))

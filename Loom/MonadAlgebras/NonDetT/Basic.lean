@@ -194,7 +194,7 @@ lemma MonadNonDet.wp_repeat {α : Type u} (init : α) (f : α -> NonDetT m (ForI
   simp [MonadNonDet.rep, NonDetT.repeat, NonDetT.wp, pure, NonDetT.wp_eq_wp]
 
 instance [MonadNonDet m] : ForIn m Lean.Loop Unit where
-  forIn {β} _ _ init f := @MonadNonDet.rep m _ β init (f ())
+  forIn := fun {β} _ init f => @MonadNonDet.rep m _ β init (f ())
 
 /- iteration lemma -/
 lemma MonadNonDet.wp_forIn {β : Type u} (init : β) (f : Unit -> β -> NonDetT m (ForInStep β))
@@ -356,7 +356,7 @@ lemma MonadNonDet.wp_repeat {α : Type u} (init : α) (f : α -> NonDetT m (ForI
   simp [MonadNonDet.rep, NonDetT.repeat, NonDetT.wp, pure, NonDetT.wp_eq_wp]
 
 instance [MonadNonDet m] : ForIn m Lean.Loop Unit where
-  forIn {β} _ _ init f := @MonadNonDet.rep m _ β init (f ())
+  forIn := fun {β} _ init f => @MonadNonDet.rep m _ β init (f ())
 
 /- iteration lemma -/
 lemma MonadNonDet.wp_forIn {β : Type u} (init : β) (f : Unit -> β -> NonDetT m (ForInStep β))
@@ -525,7 +525,7 @@ lemma MonadNonDet.wp_repeat {α : Type u} (init : α) (f : α -> NonDetT m (ForI
   simp [MonadNonDet.rep, NonDetT.repeat, NonDetT.wp, pure, NonDetT.wp_eq_wp]
 
 instance [MonadNonDet m] : ForIn m Lean.Loop Unit where
-  forIn {β} _ _ init f := @MonadNonDet.rep m _ β init (f ())
+  forIn := fun {β} _ init f => @MonadNonDet.rep m _ β init (f ())
 
 /- iteration lemma -/
 lemma MonadNonDet.wp_forIn {β : Type u} (init : β) (f : Unit -> β -> NonDetT m (ForInStep β))
@@ -682,7 +682,7 @@ lemma MonadNonDet.wp_repeat {α : Type u} (init : α) (f : α -> NonDetT m (ForI
   simp [MonadNonDet.rep, NonDetT.repeat, NonDetT.wp, pure, NonDetT.wp_eq_wp]
 
 instance [MonadNonDet m] : ForIn m Lean.Loop Unit where
-  forIn {β} _ _ init f := @MonadNonDet.rep m _ β init (f ())
+  forIn := fun {β} _ init f => @MonadNonDet.rep m _ β init (f ())
 
 /- iteration lemma -/
 lemma MonadNonDet.wp_forIn {β : Type u} (init : β) (f : Unit -> β -> NonDetT m (ForInStep β))
