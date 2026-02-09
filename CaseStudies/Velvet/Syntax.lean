@@ -47,8 +47,8 @@ private def _root_.Lean.SimplePersistentEnvExtension.modify
 abbrev doSeq := TSyntax ``Term.doSeq
 abbrev doSeqItem := TSyntax ``Term.doSeqItem
 
-declare_syntax_cat require_caluse
-declare_syntax_cat ensures_caluse
+declare_syntax_cat require_clause
+declare_syntax_cat ensures_clause
 declare_syntax_cat leafny_binder
 
 def termBeforeReqEnsDo := withForbidden "require" (withForbidden "ensures" Term.termBeforeDo)
@@ -61,12 +61,12 @@ builtin_initialize
 
 syntax "(" ident ":" term ")" : leafny_binder
 syntax "(mut" ident ":" term ")" : leafny_binder
-syntax "require" termBeforeReqEnsDo : require_caluse
-syntax "ensures" termBeforeReqEnsDo : ensures_caluse
+syntax "require" (atomic(ident ":"))? termBeforeReqEnsDo : require_clause
+syntax "ensures" (atomic(ident ":"))? termBeforeReqEnsDo : ensures_clause
 
 syntax "method" ident leafny_binder* "return" "(" ident ":" term ")"
-  (require_caluse )*
-  (ensures_caluse)* "do" doSeq
+  (require_clause )*
+  (ensures_clause)* "do" doSeq
   Termination.suffix : command
 
 declare_syntax_cat prove_correct_command
@@ -230,6 +230,36 @@ private def Array.andListWithName (ts : Array (TSyntax `term)) (name_prefix : TS
       t <- `(term| (with_name_prefix $name_prefix:name $t') ∧ $t)
     return t
 
+private def Array.andListWithNames (ts : Array (TSyntax `term)) (names : Array (Option (TSyntax `ident))) (defaultName : Name) (typePrefix : String) : TermElabM (TSyntax `term) := do
+  if ts.size = 0 then `(term| True) else
+    let mut nameCounts : Std.HashMap String Nat := {}
+    let mut results : Array (TSyntax `term) := #[]
+
+    for i in [:ts.size] do
+      let t := ts[i]!
+      let n? := names[i]!
+
+      let baseName := match n? with
+        | some n => n.getId.toString
+        | none => defaultName.toString
+
+      let count := nameCounts.getD baseName 0
+      nameCounts := nameCounts.insert baseName (count + 1)
+
+      let deduplicatedName := if count = 0 then baseName else s!"{baseName}_{count}"
+      let finalName := typePrefix ++ deduplicatedName
+
+      let nStx := Syntax.mkNameLit s!"`{finalName}"
+      let nStx : TSyntax `name := ⟨nStx⟩
+      let namedTerm ← `(term| with_name_prefix $nStx $t)
+      results := results.push namedTerm
+
+    let mut t := results[0]!
+    for i in [1:results.size] do
+      let t' := results[i]!
+      t ← `(term| $t' ∧ $t)
+    return t
+
 private def Array.andList (ts : Array (TSyntax `term)) : TermElabM (TSyntax `term) := do
   if ts.size = 0 then `(term| True) else
     let mut t := ts[0]!
@@ -247,10 +277,12 @@ private def addPreludeToPreCond (pre : Term) (modIds : Array Ident) : CoreM (TSy
 elab_rules : command
   | `(command|
   method $name:ident $binders:leafny_binder* return ( $retId:ident : $type:term )
-  $[require $req:term]*
-  $[ensures $ens:term]* do $doSeq:doSeq
+  $[require $[$reqNames :]? $req:term]*
+  $[ensures $[$ensNames :]? $ens:term]* do $doSeq:doSeq
   $suf:suffix
   ) => do
+  -- Reset the nameCounter at the start of each method to ensure fresh naming per method
+  loomAssertionsMap.modify (fun s => { s with nameCounter := {} })
   let (defCmd, obligation, testingCtx) ← Command.runTermElabM fun _vs => do
     let bindersIdents ← toBracketedBinderArrayLeafny binders
 
@@ -283,10 +315,8 @@ elab_rules : command
       $suf:suffix)
     -- let lemmaName := mkIdent <| name.getId.appendAfter "_correct"
 
-    let reqName <- `(name| `require)
-    let ensName <- `(name| `ensures)
-    let pre <- req.andListWithName reqName
-    let post <- ens.andListWithName ensName
+    let pre <- req.andListWithNames reqNames (Name.mkSimple "require") "req."
+    let post <- ens.andListWithNames ensNames (Name.mkSimple "ensures") "ens."
 
     let namelessPre <- req.andList
     let namelessPre <- addPreludeToPreCond namelessPre modIds

@@ -1,36 +1,25 @@
-# Loom: A Framework for Automated Generation of Foundational Multi-Modal Verifiers
+# Loom (ICML 2026 Artefact) — WybeCoder: Verified Imperative Code Generation
 
-`Loom` is a framework for producing foundational multi-modal verifiers. Main features are:
+This repository is the artefact companion to the paper **"WybeCoder: Verified Imperative Code Generation"** (ICML 2026). It is a fork of [`verse-lab/loom`](https://github.com/verse-lab/loom) with extensions for named verification conditions, semantic goal tagging, and new case studies.
 
-* Automated weakest precondition generation
+<!-- TODO: Add arxiv link once available -->
+<!-- TODO: Add licensing information -->
 
-* Executable semantics
+## Features Over Main Repository
 
-* Non-Determinism semantics
+This artefact adds the following features on top of the main Loom framework:
 
-* Ready-to-use sample verifiers for imperative code with automated and interactive proofs
+- **Named verification conditions** — optional naming for `invariant`, `assert`, `require`, `ensures`, `decreasing`, and `done_with` clauses
 
-`Loom` is based on the monadic shallow embedding of an executable program semantics into Lean 4 theorem prover.
+- **Semantic goal tagging** — loop phase suffixes (`.entry`, `.loop`, `.exit`) and branch suffixes (`.loop_pos`, `.loop_neg`) for structured goal identification
 
-For automated weakest precondition generation, `Loom` uses Monad Transformer Algebras.
+- **`loom_named_split` tactic** — structural traversal that names goals from annotations, producing human-readable case names
 
-## Using `Loom`
+- **`loom_prod_split` tactic** — destructures `MProdWithNames` hypotheses with proper names derived from annotations
 
-To use `Loom` in your project, add the following to your
-`lakefile.lean`:
+- **Name collision fix** — deduplicated naming via `getDeduplicatedName`, replacing the old per-declaration counter that caused collisions across methods
 
-```lean
-require "verse-lab" / "loom" @ git "master"
-```
-
-Or add the following to your `lakefile.toml`:
-
-```toml
-[[require]]
-name = "loom"
-git = "https://github.com/verse-lab/loom.git"
-rev = "master"
-```
+- **New case studies** — BFS (knight moves, fully proven), quicksort (fully proven), and a naming demonstration file
 
 ## Build
 
@@ -81,7 +70,7 @@ The repository consists of 2 key parts:
 
  ### `Loom` folder
 
-This folder contains the theoretical foundation of the framework: 
+This folder contains the theoretical foundation of the framework:
 
 - typeclass definitions for Ordered Monad Algebras (`MAlgOrdered`)  and Monad Transformer Algebras (`MAlgLift`) in `Loom/MonadAlgebras/Defs.lean`
 
@@ -97,7 +86,7 @@ Also it provides ready-to-use macros for an imperative `WHILE`-like language.
 
 This folder contains two framework examples powered by Loom: `Velvet` and `Cashmere`.
 
-- `Velvet` is a framework for Dafny-style specification and verification of imperative programs. 
+- `Velvet` is a framework for Dafny-style specification and verification of imperative programs.
 
   Theory about separated proofs for termination and correctness in Velvet is in `CaseStudies/Velvet/VelvetTheory.lean`,
   related example file is `CaseStudies/Velvet/VelvetExamples/Total_Partial_example.lean`
@@ -126,20 +115,12 @@ This folder contains two framework examples powered by Loom: `Velvet` and `Cashm
   `loom_solve?` tactic suggests a sequence of more low-level tactics to get the same result as `loom_solve`.
 
 
-#### Full list of implemented examples
+#### New examples in this artefact
 
-Examples are organized in directories by their verifier:
+Located in `CaseStudies/Velvet/VelvetExamples`:
 
-- `CaseStudies/Cashmere` - directory with examples from Section 2 of the paper
-  - `Cashmere.lean` - definition of the computational monad for `Cashmere` examples as well as correctness proofs for all case studies up to Section 2.6
+- `BFS.lean` - BFS-based knight moves reachability, fully proven with named verification conditions
 
-  - `CashmereIncorrectnessLogic.lean` - example from 2.7: using Angelic Non-Determinism to prove that there exists a bug in a program
-- `CaseStudies/Velvet/VelvetExamples` - directory with examples from Section 8 of the paper
+- `quicksort.lean` - quicksort with correctness (sorted output) and permutation proof, fully proven
 
-  - `Examples.lean` - basic Dafny-like examples (`insertionSort`, `squareRoot`) in `Velvet` with partial correctness semantics
-
-  - `Examples_Total.lean` - similar examples but in Total semantics, also contains a `cbrt` example for manual proof after SMT failure
-
-  - `Total_Partial_example.lean` - concluding functional correctness in total semantics from termination and functional correctness in partial semantics effortlessly for `insertionSort`
-  
-  - `SpMSpV_Example.lean` - proving sparse matrix multiplication algorithms mixing automated and interactive proof modes with "two-layered paradigm"
+- `Naming.lean` - demonstration of the named verification condition and goal tagging features
