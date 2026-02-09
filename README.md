@@ -1,4 +1,4 @@
-# Loom (ICML 2026 Artefact) — WybeCoder: Verified Imperative Code Generation
+# Loom ICML 2026 Artefact for WybeCoder: Verified Imperative Code Generation
 
 This repository is the artefact companion to the paper **"WybeCoder: Verified Imperative Code Generation"** (ICML 2026). It is a fork of [`verse-lab/loom`](https://github.com/verse-lab/loom) with extensions for named verification conditions, semantic goal tagging, and new case studies.
 
@@ -19,13 +19,11 @@ This artefact adds the following features on top of the main Loom framework:
 
 - **Name collision fix** — deduplicated naming via `getDeduplicatedName`, replacing the old per-declaration counter that caused collisions across methods
 
-- **New case studies** — BFS (knight moves, fully proven), quicksort (fully proven), and a naming demonstration file
+- **New case studies** — Best First Search (for knight moves, fully proven), quicksort (fully proven), and a naming demonstration file
 
 ## Build
 
-Loom requires [Lean 4](https://github.com/leanprover/lean4). We have tested Loom
-on macOS (arm64) and Ubuntu (x86_64). Windows with WSL2 is also supported.
-Native Windows support is not yet available.
+Loom requires [Lean 4](https://github.com/leanprover/lean4) (v4.23.0).
 
 To build Loom, run:
 
@@ -49,9 +47,8 @@ curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf 
 <details close>
 <summary><strong>Dependencies</strong></summary>
 
-Loom depends on [`z3`](https://github.com/Z3Prover/z3),
-[`cvc5`](https://github.com/cvc5/cvc5), and
-[`uv`](https://github.com/astral-sh/uv). You do not need to have these installed
+Loom depends on [`z3`](https://github.com/Z3Prover/z3) and
+[`cvc5`](https://github.com/cvc5/cvc5). You do not need to have these installed
 on your system, as our build system will download them automatically when you
 run `lake build`. Loom will use its own copies of these tools, and will not
 touch your system-wide versions.
@@ -68,7 +65,7 @@ The repository consists of 2 key parts:
 
  - `CaseStudies`, examples for deriving and using Program Verifiers powered by Loom
 
- ### `Loom` folder
+ ### `Loom` framework
 
 This folder contains the theoretical foundation of the framework:
 
@@ -80,7 +77,7 @@ This folder contains the theoretical foundation of the framework:
 
 - Weakest Precondition generation and theorems for it in `Loom/MonadAlgebras/WP`
 
-Also it provides ready-to-use macros for an imperative `WHILE`-like language.
+Also it provides ready-to-use macros for imperative implementations.
 
 ### `CaseStudies` folder
 
