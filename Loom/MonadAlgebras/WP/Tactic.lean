@@ -1,5 +1,5 @@
 import Lean
-
+import Auto
 import Loom.MonadAlgebras.WP.Attr
 import Loom.MonadAlgebras.WP.DoNames'
 import Loom.MonadAlgebras.WP.Matcher
@@ -65,8 +65,8 @@ elab "wpgen_generate_size_conditions" : tactic => do
       let some larger := larger | continue
       let .fvar larger := larger | continue
       let largerIdent ← Lean.mkIdent <$> larger.getUserName
-      evalTactic (← `(tactic| have : sizeOf $cIdent:ident < sizeOf $largerIdent:ident := by
-        subst $largerIdent ; simp))
+      evalTactic (← `(tactic| have : sizeOf $cIdent:ident < sizeOf $largerIdent:ident := autoSMTSorry _))
+
 
 def generateWPStep : TacticM (Bool × Expr) := withMainContext do
   let goalType <- getMainTarget
@@ -174,10 +174,78 @@ def renameOld (n : Name) : TacticM Unit := withMainContext do
     return hypsNew
 
 elab "loom_split" : tactic => do
-  let goalType <- getMainTarget
-  match_expr goalType with
-  | WithName _ _ => throwError "Cannot split on a WithName goal"
-  | _ => evalTactic $ <- `(tactic| apply And.intro)
+  let goalType := (<- getMainTarget).consumeMData
+  if goalType.isAppOf ``WithName then
+    let args := goalType.getAppArgs
+    if args.size >= 2 then
+      let n := args[1]!
+           let rec extractName (e : Expr) : Option Name := do
+             if e.isAppOfArity ``Name.mkStr 2 then
+               let p := e.getAppArgs[0]!
+               let s := e.getAppArgs[1]!
+               match s with
+               | .lit (.strVal s) =>
+                 match extractName p with
+                 | some pName => some (Name.mkStr pName s)
+                 | none => some (Name.mkStr Name.anonymous s) -- fallback if p is not a name expr
+               | _ => none
+             else if e.isAppOf ``Name.anonymous then
+               some Name.anonymous
+             else
+               none
+
+           let tag_opt := extractName n
+           if let some tag := tag_opt then
+             let goals ← getGoals
+             if let g :: gs := goals then
+               g.setTag tag
+               setGoals (g :: gs)
+             evalTactic $ <- `(tactic| unfold WithName)
+           else
+             evalTactic $ <- `(tactic| apply And.intro)
+    else evalTactic $ <- `(tactic| apply And.intro)
+  else
+    let tag ← getMainTag
+    evalTactic $ <- `(tactic| apply And.intro)
+    if tag != Name.anonymous && tag != `unnamed then
+      let goals ← getGoals
+      if let g1 :: g2 :: gs := goals then
+        g1.setTag tag
+        g2.setTag tag
+        setGoals (g1 :: g2 :: gs)
+
+
+elab "loom_rename" : tactic => do
+  let goals ← getGoals
+
+  let mut tagCounts : Std.HashMap Name Nat := {}
+  for g in goals do
+    let mut tag ← g.getTag
+    if tag.toString.startsWith "ensures." then
+      tag := tag.replacePrefix (Name.mkSimple "ensures") Name.anonymous
+    else if tag == Name.mkSimple "ensures" then
+      pure ()
+    else if tag.toString.startsWith "assert." then
+      tag := tag.replacePrefix (Name.mkSimple "assert") Name.anonymous
+    else if tag == Name.mkSimple "assert" then
+      pure ()
+    else
+      let lctx ← g.withContext getLCtx
+      if lctx.usesUserName `if_pos then
+        tag := Name.mkStr tag "loop"
+      else if lctx.usesUserName `if_neg then
+        tag := Name.mkStr tag "exit"
+      else
+        tag := Name.mkStr tag "entry"
+
+    if tagCounts.contains tag then
+      let count := tagCounts.get! tag
+      let newTag := tag.appendIndexAfter count
+      g.setTag newTag
+      tagCounts := tagCounts.insert tag (count + 1)
+    else
+      g.setTag tag
+      tagCounts := tagCounts.insert tag 1
 
 
 elab "loom_intro" : tactic => withMainContext do
