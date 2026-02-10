@@ -133,7 +133,9 @@ prove_correct min_knight_moves by
     | nil => aesop
     | cons hd tl =>
       simp only [h_q, IsSorted, List.map_cons] at sorted
-      exact sorted.tail
+      simp only [List.tail!_cons]
+      exact List.IsChain.tail sorted
+
 
   case found_correct.entry =>
     have h_i_eq_d : i = d := Option.some_injective _ h
@@ -169,15 +171,13 @@ prove_correct min_knight_moves by
         simp only [h_tail, List.head?_cons, Option.some.injEq] at h
         -- h : hd' = (hx, hy, hd)
         -- Show i ≤ hd from sorted
-        rw [h_q, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
         have h_i_le_hd : i ≤ hd := by
-          rw [h_3] at sorted
-          apply sorted.1 hd
-          simp only [List.mem_map, Prod.exists, exists_eq_right]
-          rw [h_tail]
-          use hx, hy
-          rw [← h]
-          apply List.mem_cons_self
+          rw [h_q, IsSorted, h_3, h_tail] at sorted
+          simp only [List.map_cons] at sorted
+          have := (List.chain'_cons.mp sorted).1
+          simp only [List.head?_cons, Option.mem_def, Option.some.injEq, forall_eq'] at this
+          rw [h] at this
+          exact this
         omega
 
   case all_valid_move.loop_pos =>
@@ -224,7 +224,8 @@ prove_correct min_knight_moves by
     -- Goal: IsSorted (queue ++ [(nx, ny, d+1)])
     rw [IsSorted]
     simp only [List.map_append, List.map_cons, List.map_nil]
-    rw [List.chain'_append]
+    change List.IsChain (fun x1 x2 => x1 ≤ x2) (List.map (fun x ↦ x.2.2) queue_1 ++ [i_3 + 1])
+    rw [List.isChain_append]
     constructor
     · rw [IsSorted] at sorted_move; exact sorted_move
     · simp only [List.chain'_singleton, List.getLast?_map, Option.mem_def, Option.map_eq_some_iff,
@@ -363,13 +364,13 @@ prove_correct min_knight_moves by
     exact queue_shortest x y d h_in_parent d' h_path
 
   case sorted_move.exit =>
-    rw [IsSorted, List.chain'_iff_pairwise]
     cases h_q : queue with
     | nil => simp [h_q] at h_1
     | cons hd tl =>
-      rw [h_q, IsSorted] at sorted
-      simp only [List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
-      exact sorted.2
+      simp only [h_q, List.tail!_cons]
+      rw [IsSorted] at sorted
+      simp only [h_q, List.map_cons] at sorted
+      exact List.Chain'.tail sorted
 
   case visited_complete_move.exit =>
     aesop
@@ -388,12 +389,15 @@ prove_correct min_knight_moves by
     | cons hd tl =>
       simp only [h_q, List.tail!_cons] at h
       simp only [h_q] at h_3
-      rw [h_q, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted
-      have h_hd : hd = (i_1, i_2, i) := h_3
-      rw [h_hd] at sorted
-      apply sorted.1 k
-      simp only [List.mem_map, Prod.exists, exists_eq_right]
-      exact ⟨x, y, h⟩
+      rw [IsSorted, h_q, List.map_cons, h_3] at sorted
+      have h_k_mem : k ∈ List.map (fun x => x.2.2) tl := by
+        simp only [List.mem_map, Prod.exists, exists_eq_right]
+        exact ⟨x, y, h⟩
+      change List.IsChain _ _ at sorted
+      rw [List.isChain_iff_pairwise] at sorted
+      exact (List.pairwise_cons.mp sorted).1 k h_k_mem
+
+
 
   case dist_bounds.exit.right =>
     cases h_q : queue with
@@ -496,7 +500,8 @@ prove_correct min_knight_moves by
         · have h_d_ge : i_3 ≤ d' := (dist_bounds p1.1 p1.2 d' h_in_q).1
           have h_shortest := queue_shortest_move p1.1 p1.2 d' h_in_q i_3 h_path_prev
           have h_d_eq : d' = i_3 := by omega
-          rw [h_queue_eq, IsSorted, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted_move
+          change List.IsChain (fun x1 x2 => x1 ≤ x2) _ at sorted_move
+          rw [h_queue_eq, List.map_cons, List.chain'_iff_pairwise, List.pairwise_cons] at sorted_move
           have h_q_le_d' : q ≤ d' := by
             by_cases h_q : q = i_3
             · omega
@@ -585,7 +590,8 @@ prove_correct min_knight_moves by
 
   case sorted.entry =>
     rw [IsSorted]
-    aesop
+    simp only [List.map_cons, List.map_nil, List.Chain']
+    decide
 
   case visited_complete.entry =>
     rw [VisitedCompleteQueue, VisitedComplete]
@@ -598,7 +604,12 @@ prove_correct min_knight_moves by
 
   case closed.entry =>
     rw [ClosedSet]
-    aesop
+    intro x y h_mem
+    simp only [List.mem_singleton, Prod.mk.injEq] at h_mem
+    left
+    exact ⟨0, by simp [h_mem.1, h_mem.2]⟩
+
+
 
 
 #print axioms min_knight_moves_correct

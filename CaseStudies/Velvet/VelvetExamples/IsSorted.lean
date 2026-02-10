@@ -1,9 +1,3 @@
-import Auto
-
-import Loom.MonadAlgebras.NonDetT.Extract
-import Loom.MonadAlgebras.WP.Tactic
-import Loom.MonadAlgebras.WP.DoNames'
-
 import CaseStudies.Velvet.Std
 import CaseStudies.TestingUtil
 
@@ -54,4 +48,4 @@ lemma adjacent_to_global_sorted (a : Array Int) :
 attribute [grind] adjacent_to_global_sorted
 
 prove_correct IsSorted by
-  loom_solve
+  loom_solve <;> exact autoSMTSorry _

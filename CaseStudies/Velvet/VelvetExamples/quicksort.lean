@@ -16,7 +16,7 @@ set_option auto.smt.trust true
 
 
 method quicksort_list_perm (l : List Int) return (res : List Int)
-  ensures List.Sorted (· ≤ ·) res
+  ensures List.Pairwise (· ≤ ·) res
   ensures List.Perm res l
 
   do
@@ -55,7 +55,7 @@ method quicksort_list_perm (l : List Int) return (res : List Int)
         invariant h_gts : ∀ x, x ∈ gts → x > pivot
         decreasing dec : n - i
       do
-        let elem := tail.get! i
+        let elem := tail[i]!
         if elem < pivot then
           lts := lts ++ [elem]
         else
@@ -85,11 +85,11 @@ method quicksort_list_perm (l : List Int) return (res : List Int)
 
 
 theorem sorted_eq_of_forall_eq {l : List Int} (h : ∀ a ∈ l, a = l.head!) :
-    List.Sorted (· ≤ ·) l := by
+    List.Pairwise (· ≤ ·) l := by
   induction l with
-  | nil => simp [List.Sorted]
+  | nil => simp [List.Pairwise]
   | cons x xs ih =>
-    simp only [List.sorted_cons]
+    simp only [List.pairwise_cons]
     constructor
     · intro a ha
       have hx : x = (x :: xs).head! := rfl
@@ -116,20 +116,20 @@ theorem drop_eq_get_cons {l : List Int} {i : Nat} (hi : i < l.length) :
 
 
 theorem get_bang_eq_getElem {l : List Int} {i : Nat} (hi : i < l.length) :
-    l.get! i = l[i] := by
-  aesop
+    l[i]! = l[i] := by
+  grind
 
 -- Helper for sorted append
 
 
 theorem sorted_append_of_sorted {l₁ l₂ : List Int}
-    (h₁ : List.Sorted (· ≤ ·) l₁) (h₂ : List.Sorted (· ≤ ·) l₂)
-    (h : ∀ a ∈ l₁, ∀ b ∈ l₂, a ≤ b) : List.Sorted (· ≤ ·) (l₁ ++ l₂) := by
+    (h₁ : List.Pairwise (· ≤ ·) l₁) (h₂ : List.Pairwise (· ≤ ·) l₂)
+    (h : ∀ a ∈ l₁, ∀ b ∈ l₂, a ≤ b) : List.Pairwise (· ≤ ·) (l₁ ++ l₂) := by
   induction l₁ with
   | nil => simp [h₂]
   | cons x xs ih =>
-    simp only [List.cons_append, List.sorted_cons]
-    simp only [List.sorted_cons] at h₁
+    simp only [List.cons_append, List.pairwise_cons]
+    simp only [List.pairwise_cons] at h₁
     constructor
     · intro a ha
       cases List.mem_append.mp ha with
@@ -178,8 +178,8 @@ prove_correct quicksort_list_perm
   -- Base case sorted
   case «ensures» =>
     match l with
-    | [] => simp [List.Sorted]
-    | [x] => simp [List.Sorted, List.pairwise_singleton]
+    | [] => simp [List.Pairwise]
+    | [x] => simp [List.Pairwise, List.pairwise_singleton]
     | _ :: _ :: _ => simp at if_pos
   -- Base case permutation
   case ensures_1 =>
@@ -214,9 +214,8 @@ prove_correct quicksort_list_perm
     | inr hr =>
       rw [hr]
       have hi : i < l.tail!.length := if_pos_1
-      rw [get_bang_eq_getElem hi]
       have := if_pos
-      rwa [get_bang_eq_getElem hi] at this
+      rwa [get_bang_eq_getElem hi] at this ⊢
   -- h_eqs.loop_neg_pos
   case h_eqs.loop_neg_pos =>
     simp only [List.mem_append, List.mem_singleton] at h
@@ -225,9 +224,8 @@ prove_correct quicksort_list_perm
     | inr hr =>
       rw [hr]
       have hi : i < l.tail!.length := if_pos_1
-      rw [get_bang_eq_getElem hi]
       have := if_pos
-      rwa [get_bang_eq_getElem hi] at this
+      rwa [get_bang_eq_getElem hi] at this ⊢
   -- h_gts.loop_neg_neg
   case h_gts.loop_neg_neg =>
     simp only [List.mem_append, List.mem_singleton] at h
@@ -236,10 +234,9 @@ prove_correct quicksort_list_perm
     | inr hr =>
       rw [hr]
       have hi : i < l.tail!.length := if_pos
-      rw [get_bang_eq_getElem hi]
       have h1 := if_neg_2
       have h2 := if_neg
-      rw [get_bang_eq_getElem hi] at h1 h2
+      rw [get_bang_eq_getElem hi] at h1 h2 ⊢
       omega
   -- h_perm.loop_pos
   case h_perm.loop_pos =>
@@ -306,9 +303,9 @@ prove_correct quicksort_list_perm
       h_gts a (h_gts_eq ▸ ensures_1.mem_iff.mp ha)
 
     -- i_1 is sorted (all elements equal the same value)
-    have hsorted_i1 : List.Sorted (· ≤ ·) i_1 := by
+    have hsorted_i1 : List.Pairwise (· ≤ ·) i_1 := by
       cases hi1 : i_1 with
-      | nil => exact List.sorted_nil
+      | nil => exact List.Pairwise.nil
       | cons e es =>
         apply sorted_eq_of_forall_eq
         intro a ha
@@ -318,7 +315,7 @@ prove_correct quicksort_list_perm
         rw [ha', he]
 
     -- x_1 ++ i_1 is sorted
-    have hsorted_x1_i1 : List.Sorted (· ≤ ·) (x_1 ++ i_1) := by
+    have hsorted_x1_i1 : List.Pairwise (· ≤ ·) (x_1 ++ i_1) := by
       apply sorted_append_of_sorted ensures_2 hsorted_i1
       intro a ha b hb
       have ha' : a < l.head! := h_x1_lt a ha

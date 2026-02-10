@@ -485,6 +485,11 @@ def constructWPGen (matcherName : Name) : TermElabM (Option MatcherWPGen) := do
             let tmp ← mkLambdaFVars #[x] e
             let tmp ← mkAppOptM ``iInf #[.some lExpr, .some xty, .none, .some tmp]
             pure (true :: dependencies, tmp)
+          else if ← isDefEq xty (mkConst ``Unit) then
+            -- Unit thunk (introduced in Lean v4.27.0 for zero-constructor cases)
+            let tmp ← mkLambdaFVars #[x] e
+            let tmp ← mkAppOptM ``iInf #[.some lExpr, .some xty, .none, .some tmp]
+            pure (true :: dependencies, tmp)
           else
             let injectedProp ← mkAppOptM ``LE.pure #[.some lExpr, .none, .none, .none, .some xty]
             let tmp ← mkAppOptM ``himp #[.some lExpr, .none, .some injectedProp, .some e]

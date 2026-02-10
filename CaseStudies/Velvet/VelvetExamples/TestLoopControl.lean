@@ -1,9 +1,3 @@
-import Auto
-
-import Loom.MonadAlgebras.NonDetT.Extract
-import Loom.MonadAlgebras.WP.Tactic
-import Loom.MonadAlgebras.WP.DoNames'
-
 import CaseStudies.Velvet.Std
 import CaseStudies.TestingUtil
 
@@ -80,7 +74,19 @@ attribute [grind] filter_sum_snoc
 
 prove_correct sum_even by
   loom_solve
-  rw [invariant_2]
-  have i_eq_size : i = arr.size := by omega
-  have extract_eq : arr = (arr.extract 0 i) := by aesop
-  rw [← extract_eq]
+  case done =>
+    rw [invariant_1]
+    have i_eq_size : i = arr.size := by omega
+    have extract_eq : arr = (arr.extract 0 i) := by aesop
+    rw [← extract_eq]
+  case invariant_1.loop_pos =>
+    have min1 : min i arr.size = i := by grind
+    have extract_app : Array.extract arr 0 (i + 1) = Array.extract arr 0 i ++ #[arr[i]!] :=
+      by aesop
+    simp only [Array.size_extract, tsub_zero, invariant_1, min1, extract_app]
+    rw [Array.filter_append]
+    · simp only [Array.size_extract, tsub_zero, List.size_toArray, List.length_cons,
+      List.length_nil, zero_add, List.filter_toArray', Array.sum_append_nat, List.sum_toArray]
+      aesop
+    · simp [Array.size_extract, tsub_zero, List.size_toArray, List.length_cons,
+      List.length_nil, zero_add]

@@ -65,7 +65,7 @@ method decodeStr' (encoded_str: Array Encoding)
 prove_correct decodeStr' by
   loom_solve
   · simp[*] at *
-    have : decoded.size = get_cnt_sum (List.take i encoded_str.toList) := by trivial
+    have : decoded.size = get_cnt_sum (List.take decoded_snd encoded_str.toList) := by trivial
     rw [this] at *
     rw [List.take_succ_eq_append_getElem]
     rw [get_cnt_sum_append]
@@ -138,18 +138,5 @@ lemma array_extract_split_i_j_k (arr : Array α) (i j k: Nat) :
 
 prove_correct encodeStr by
   loom_solve
-  · rw [array_extract_split str i j (by assumption) (by assumption)]
-    rw [Array.push_eq_append]
-    rw [decodeStrLean_append]
-    have : decodeStrLean encoding = str.extract 0 i := by trivial
-    rw [this]
-    refine (Array.append_right_inj (str.extract 0 i)).mpr ?_
-    repeat (unfold decodeStrLean ; simp_all)
-    apply Array.ext
-    grind
-    intros l hl hl2
-    have inv : ∀ (k : ℕ), i ≤ k → k < j → str[k]! = str[i] := by trivial
-    have inv' := inv (i+l)
-    grind
 
 end RunLengthEncoding

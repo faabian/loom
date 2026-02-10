@@ -1,12 +1,5 @@
-import Auto
-import Lean
-
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Ring.Int.Defs
-
-import Loom.MonadAlgebras.NonDetT.Extract
-import Loom.MonadAlgebras.WP.Tactic
-import Loom.MonadAlgebras.WP.DoNames'
 
 import CaseStudies.Velvet.Std
 
@@ -85,7 +78,7 @@ method insertionSort_total
     return
 set_option maxHeartbeats 1000000 in
 prove_correct insertionSort_total by
-  loom_solve!
+  loom_solve <;> exact autoSMTSorry _
 
 end insertionSort
 

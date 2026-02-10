@@ -1,13 +1,5 @@
-import Auto
-import Lean
-
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.Ring.Int.Defs
-
-import Loom.MonadAlgebras.NonDetT.Extract
-import Loom.MonadAlgebras.WP.Tactic
-import Loom.MonadAlgebras.WP.DoNames'
-
 
 import CaseStudies.Velvet.Std
 
@@ -311,14 +303,11 @@ theorem VSpV_correct_pure (out: Array Int) (arr: Array Int)
             have splitted_sum:
               (∑ i ∈ Finset.range (spv.ind.size), if spv.ind[i]! < m then spv.val[i]! * arr[spv.ind[i]!]! else 0) +
               (∑ i ∈ Finset.range (spv.ind.size), if spv.ind[i]! = m then spv.val[i]! * arr[spv.ind[i]!]! else 0) =
-              (∑ i ∈ Finset.range (spv.ind.size), if spv.ind[i]! < m + 1 then spv.val[i]! * arr[spv.ind[i]!]! else 0) := by
+              (∑ i ∈ Finset.range (spv.ind.size), if spv.ind[i]! ≤ m then spv.val[i]! * arr[spv.ind[i]!]! else 0) := by
                 rw [←Finset.sum_add_distrib]
                 rw [Finset.sum_congr (by rfl)]
                 intro x hx
-                by_cases h_eq_m : spv.ind[x]! = m <;> simp [h_eq_m]
-                have miff : spv.ind[x]! < m ↔ spv.ind[x]! < m + 1 := by
-                  constructor <;> rintro h_lt <;> omega
-                simp [miff]
+                by_cases h_eq_m : spv.ind[x]! = m <;> simp [h_eq_m] <;> omega
             rw [←spv.size_eq.1, ←splitted_sum, add_left_cancel_iff.mpr]
             by_cases exists_i: ∃ i < spv.size, spv.ind[i]! = m
             { rcases exists_i with ⟨ind, h_ind⟩

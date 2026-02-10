@@ -68,7 +68,8 @@ method LeftmostMaximalDigit (input: Array Char)
 set_option maxHeartbeats 3000
 
 /--
-error: (deterministic) timeout at `«tactic execution»`, maximum number of heartbeats (3000) has been reached
+error: Tactic `simp` failed with a nested error:
+(deterministic) timeout at `simp`, maximum number of heartbeats (3000) has been reached
 
 Note: Use `set_option maxHeartbeats <num>` to set the limit.
 
